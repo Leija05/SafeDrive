@@ -1,0 +1,160 @@
+{
+  "project_name": "SafeDrive GPS",
+  "identity_and_concept": {
+    "designer": "E1 - The Anti-AI Designer",
+    "core_concept": "Tactical Control Center & Zero-Trust Telemetry",
+    "emotional_tone": "Authoritative, vigilant, secure, and professional. It must feel like military-grade software used to protect high-value assets across dangerous borders. No playful elements, no soft gradients. Pure, unadulterated function.",
+    "key_principles": [
+      "Data over Decoration: Color is used strictly for status and alerts. 95% of the UI is monochrome.",
+      "Density with Clarity: The Bento Grid must utilize every pixel efficiently. Optical alignment over mathematical alignment.",
+      "Gestión por Excepción: The interface is calm (dark/grey) until an anomaly occurs, at which point it violently demands attention (Signal Red)."
+    ]
+  },
+  "theme_and_archetype": {
+    "theme": "Dark Mode Only",
+    "archetype": "Archetype 2: The Performance Pro (Tactical Command Center Adaptation)",
+    "reasoning": "The application is a mission-critical fleet monitoring dashboard used mostly at night or in dark control rooms. High contrast is required for immediate incident recognition."
+  },
+  "typography": {
+    "strategy": "Swiss Brutalist meets Military Telemetry. High contrast between imposing headings and precise data.",
+    "fonts": {
+      "headings": {
+        "family": "Chivo, sans-serif",
+        "weight": "font-black or font-bold",
+        "usage": "Marketing page heroes, dashboard main titles, critical alert banners. NOT Inter.",
+        "tracking": "tracking-tight"
+      },
+      "body": {
+        "family": "IBM Plex Sans, sans-serif",
+        "weight": "font-normal to font-medium",
+        "usage": "General UI text, descriptions, standard data.",
+        "tracking": "tracking-normal"
+      },
+      "telemetry": {
+        "family": "IBM Plex Mono, monospace",
+        "weight": "font-medium",
+        "usage": "Coordinates, speed, timers, unit IDs, timestamps.",
+        "tracking": "tracking-tight"
+      }
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl",
+      "h2": "text-2xl sm:text-3xl",
+      "h3": "text-xl",
+      "data_large": "text-3xl font-mono",
+      "body": "text-sm md:text-base",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em]"
+    }
+  },
+  "colors": {
+    "background": {
+      "base": "#050505",
+      "surface": "#121212",
+      "surface_elevated": "#1A1A1A",
+      "glass": "bg-black/60 backdrop-blur-xl"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "tertiary": "#71717A"
+    },
+    "status_alerts": {
+      "critical": "#FF2A2A",
+      "warning": "#FFB800",
+      "safe": "#00E676",
+      "offline": "#52525B"
+    },
+    "brand_accent": {
+      "primary": "#FFFFFF",
+      "secondary": "#007AFF"
+    },
+    "borders": {
+      "default": "border-white/10",
+      "focus": "border-white/40"
+    }
+  },
+  "spacing_and_layout": {
+    "strategy": "MODE B: THE 'CONTROL ROOM' GRID",
+    "bento_grid": {
+      "base": "grid-cols-1 md:grid-cols-4 lg:grid-cols-12",
+      "gap": "gap-4 md:gap-6",
+      "spans": {
+        "map_default": "col-span-full lg:col-span-8 row-span-4",
+        "map_expanded": "col-span-full lg:col-span-12 row-span-6",
+        "metrics_summary": "col-span-full md:col-span-2 lg:col-span-4 row-span-1",
+        "alert_panel": "col-span-full lg:col-span-4 row-span-3",
+        "fleet_list": "col-span-full lg:col-span-4 row-span-3"
+      },
+      "rules": [
+        "Every pixel must be utilized. Use h-full on children.",
+        "Map expands dramatically when a 'Critical Alert' is triggered."
+      ]
+    },
+    "surface_styles": {
+      "dashboard_cards": "Flat solid #121212 background, 1px border-white/10, NO soft shadows. border-radius: 4px (rounded-sm) or 8px max (rounded-md).",
+      "marketing_hero": "Dark overlay (bg-black/60) over intense highway/truck imagery.",
+      "headers": "Crystal Glass style (bg-black/80 backdrop-blur-xl) with 1px border-b border-white/10."
+    }
+  },
+  "components": {
+    "strategy": "Hybrid",
+    "marketing_page": {
+      "structure": "Raw HTML + Tailwind. Aggressive layouts, large typography.",
+      "commerce": "Pricing plans use grid, hover states with 1px border glow. Checkout via WhatsApp/Email links."
+    },
+    "dashboard": {
+      "base": "Shadcn UI heavily customized for the 'Tactical' look (sharp edges, monochrome base).",
+      "map": "Leaflet + OpenStreetMap. Map tiles MUST use a dark/night variant filter via CSS (e.g., filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%)).",
+      "buttons": "Square or slight rounding. Hover states must change text color if background changes. Solid white for primary, solid red for panic.",
+      "chat": "Multi-user reactive help desk. Alerts stick to the top."
+    }
+  },
+  "motion_and_interactions": {
+    "philosophy": "Snappy, precise, no lag.",
+    "hover_states": "1px borders brighten (border-white/40). Minimal scaling.",
+    "alerts": "Critical alerts MUST pulse (opacity or subtle border glow). Use CSS keyframes for a tactical radar-like pulse on map markers.",
+    "transitions": "Fast (150ms-200ms) ease-out for panel expansions."
+  },
+  "iconography": {
+    "library": "@phosphor-icons/react",
+    "style": "Bold or Regular weight for high legibility on dark backgrounds.",
+    "installation": "yarn add @phosphor-icons/react"
+  },
+  "testing": {
+    "requirements": [
+      "All interactive elements MUST include data-testid attribute.",
+      "Format: kebab-case, role-based.",
+      "Examples: data-testid='login-submit-button', data-testid='plan-oro-select', data-testid='panic-button', data-testid='unit-card-123'"
+    ]
+  },
+  "media": {
+    "strategy": "High-intensity night photography.",
+    "images": {
+      "hero_background": {
+        "url": "https://images.pexels.com/photos/11053643/pexels-photo-11053643.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Large cargo truck traveling at night, used for marketing landing page hero background with a heavy black overlay.",
+        "category": "hero"
+      },
+      "highway_context": {
+        "url": "https://images.pexels.com/photos/17720190/pexels-photo-17720190.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Brightly lit trucks in an urban area at night.",
+        "category": "context"
+      },
+      "control_room_texture": {
+        "url": "https://images.pexels.com/photos/5532222/pexels-photo-5532222.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Close-up of an illuminated vintage control panel, to be used as a subtle texture or visual for the 'About' or 'Technology' section.",
+        "category": "texture"
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "1. Initialize React, Tailwind, and Shadcn. Install @phosphor-icons/react, leaflet, react-leaflet.",
+    "2. Setup routing: Landing/Commerce page (/) and Dashboard (/dashboard).",
+    "3. Apply Dark Mode globally by default. Set body background to #050505 and text to #FFFFFF.",
+    "4. Implement the Leaflet map with a CSS filter to force a dark mode appearance if dark tiles are not natively provided.",
+    "5. Build the Bento Grid dashboard using CSS Grid (grid-cols-12). Ensure the map component can span wider when an alert state is active in the state management.",
+    "6. Build the Help Desk chat and Fleet List with strict adherence to the tactical/monochrome aesthetic. Use IBM Plex Mono for all coordinates and speed values.",
+    "7. Ensure the Commercial Plans (Bronce, Plata, Oro) have distinct visual hierarchy, utilizing 1px borders and hover glows.",
+    "8. Add data-testid attributes to ALL buttons, inputs, and interactive cards."
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "app_name": "SafeDrive Mobile",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A tactical, military-grade command center for logistics tracking with high-contrast readouts and absolute zero decorative friction.",
+  "color": {
+    "surface": "#050505",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#121212",
+    "onSurfaceSecondary": "#F4F4F5",
+    "surfaceTertiary": "#1A1A1D",
+    "onSurfaceTertiary": "#D4D4D8",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#050505",
+    "brand": "#007AFF",
+    "brandPrimary": "#007AFF",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#005BB5",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#003D7A",
+    "onBrandTertiary": "#E6F2FF",
+    "success": "#00E676",
+    "onSuccess": "#000000",
+    "warning": "#FFB800",
+    "onWarning": "#000000",
+    "error": "#FF2A2A",
+    "onError": "#FFFFFF",
+    "info": "#007AFF",
+    "onInfo": "#FFFFFF",
+    "offline": "#52525B",
+    "onOffline": "#FFFFFF",
+    "border": "#27272A",
+    "borderStrong": "#3F3F46",
+    "divider": "#1F1F22"
+  },
+  "typography": {
+    "displayFontFamily": "IBM Plex Mono",
+    "textFontFamily": "IBM Plex Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Dense, grid-like alignment. Padding is functional and tight. Minimal whitespace to maximize telemetry visibility.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 2,
+    "md": 4,
+    "lg": 8,
+    "pill": 999
+  },
+  "shadow_tier": 0,
+  "navigation": "bottom_tabs",
+  "icon_set": "MaterialCommunityIcons",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [],
+    "dont's": [
+      "No blur or glassmorphism. User explicitly requested 'no soft gradients' and a tactical command center feel. Use solid surface tones and borders for elevation."
+    ]
+  },
+  "platform_libraries": {
+    "glass": "solid surfaceSecondary",
+    "image": "expo-image",
+    "blur": "none",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler",
+    "map": "react-native-maps"
+  },
+  "screens": [
+    {
+      "name": "Launcher / Login",
+      "purpose": "Secure authentication ensuring single-device session per driver.",
+      "states": {
+        "loading": "Centered monospace 'SYNCING...' with small activity indicator.",
+        "empty": "N/A",
+        "error": "Red tactical alert box 'SESSION ACTIVE ON ANOTHER DEVICE'."
+      },
+      "layout": "High-contrast login form. Monospace labels above inputs. Solid #007AFF primary button pinned to keyboard. A status text at the bottom 'SafeDrive Enforcer Active'."
+    },
+    {
+      "name": "Driving HUD",
+      "purpose": "Live telemetry view with route map, speed, next turn, and panic trigger.",
+      "states": {
+        "loading": "Acquiring GPS Signal... (Blinking yellow warning status)",
+        "empty": "N/A",
+        "error": "GPS Offline - Switching to Black Box Burst Mode"
+      },
+      "layout": "Top-third: Active Trip ID & ETA. Middle: Minimal dark map with high-contrast route line. Lower-third: Oversized monospace current speed (km/h) + Next instruction pill. Bottom edge: 'Windshield Reflection' toggle and a critical red 'Silent Panic' button. When Reflection Mode is ON, apply a full-screen vertical flip (scaleY: -1) and maximize contrast to reflect correctly on the windshield at night."
+    },
+    {
+      "name": "Secure Chat",
+      "purpose": "Dispatch communication with speed-based input locking.",
+      "states": {
+        "loading": "Connecting to Dispatch...",
+        "empty": "No active messages.",
+        "error": "Offline - Messages queued."
+      },
+      "layout": "Standard chat feed but tactical style (sharp bubbles, mono timestamps). Bottom input area: If vehicle speed > 5 km/h, the text input is fully DISABLED and replaced by a horizontal scroll of 4-5 Quick Reply chips (e.g., 'Copy', 'Delayed', 'At Checkpoint'). Full keyboard unlocks only at 0 km/h."
+    },
+    {
+      "name": "Alerts & Black Box",
+      "purpose": "Logs route deviations and displays offline data queue.",
+      "states": {
+        "loading": "Checking logs...",
+        "empty": "System Nominal. No alerts.",
+        "error": "Burst sync failed. Retrying..."
+      },
+      "layout": "Vertical list of log rows. Each row: mono timestamp, colored status badge (e.g., Deviation [Red], Offline Log [Gray]), and detail text. Shows a persistent progress bar at the top if offline data is waiting for a 'Burst Sync'."
+    }
+  ],
+  "images": {
+    "tactical_map_overlay": {
+      "url": "https://images.unsplash.com/photo-1515128926115-1da1b3c702c9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwyfHxkYXJrJTIwbW9kZSUyMHRhY3RpY2FsJTIwbWFwJTIwVUl8ZW58MHx8fHwxNzgyMTg5NDc2fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark tactical grid map representation"
+    },
+    "driver_avatar": {
+      "url": "https://images.unsplash.com/photo-1626712211690-8de4fe30177c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjB0cnVjayUyMGRyaXZlciUyMGZhY2UlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODIxODk1MzB8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Portrait of professional truck driver"
+    }
+  },
+  "instructions_to_main_agent": [
+    "STRICT ADHERENCE TO DARK MODE: Only use the defined tactical color palette (#050505 base, #121212 surfaces, high-contrast text). No light mode variants.",
+    "WINDSHIELD REFLECTION MODE: Implement a toggle on the HUD screen that wraps the main view in a container with `transform: [{ scaleY: -1 }]` (or X depending on the physical dashboard placement preference, usually Y for windshield reflection). This is critical for the night driving requirement.",
+    "SPEED-LOCKED CHAT: In the Secure Chat screen, simulate a speed state. If `speed > 5`, disable the TextInput completely and only render a horizontal ScrollView of `Pressable` quick-reply chips. This is a core safety requirement.",
+    "NO GLASSMORPHISM / BLUR: The user explicitly requested 'no soft gradients'. Use sharp edges (border-radius: 4 to 8), solid background colors, and border lines (`border` or `borderStrong`) to define visual hierarchy instead of shadows or blur.",
+    "TYPOGRAPHY: Use 'IBM Plex Mono' for all telemetry data (speed, coordinates, ETAs, timestamps) and 'IBM Plex Sans' for descriptive UI text. This fulfills the military-grade command center aesthetic.",
+    "SILENT PANIC BUTTON: Must be a highly visible button (using the `#FF2A2A` critical color) located on the main HUD. Simulating a 'Screen Off' state can be done by rendering a full black absolute overlay when triggered."
+  ]
+}

@@ -87,7 +87,7 @@ export default function Landing() {
         </div>
         <div className="relative max-w-6xl mx-auto px-4 py-28 lg:py-40">
           <div className="inline-flex items-center gap-2 border border-white/15 rounded-full px-3 py-1 text-xs font-tel text-zinc-300 mb-6">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00E676]" /> Ecosistema Fronterizo · Monterrey ↔ Nuevo Laredo
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00E676]" /> Ecosistema Fronterizo · Nuevo Laredo
           </div>
           <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight max-w-3xl leading-[1.05]">
             Seguridad activa que <span className="text-[#FF2A2A]">previene</span> el robo y los accidentes en tiempo real.

@@ -1,4 +1,3 @@
-
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,8 +45,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     except:
         body = b""
     
-    logger.error(f"❌ Validation error 422: {exc.errors()}")
-    logger.error(f"📦 Request body: {body.decode(errors='ignore')}")
+    logger.error(f"[422] Validation error: {exc.errors()}")
+    logger.error(f"[PAYLOAD] Request body: {body.decode(errors='ignore')}")
     
     return JSONResponse(
         status_code=422,
@@ -62,16 +61,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.on_event("startup")
 async def startup_event():
     """Connect to MongoDB on startup."""
-    logger.info("🚀 Starting SafeDrive GPS backend...")
+    logger.info("[INIT] Starting SafeDrive GPS backend...")
     await connect_to_mongo()
-    logger.info("✓ Database connected")
+    logger.info("[OK] Database connected")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close MongoDB connection on shutdown."""
-    logger.info("🛑 Shutting down SafeDrive GPS backend...")
+    logger.info("[HALT] Shutting down SafeDrive GPS backend...")
     await close_mongo_connection()
-    logger.info("✓ Database connection closed")
+    logger.info("[OK] Database connection closed")
 
 # --- API Routes ---
 

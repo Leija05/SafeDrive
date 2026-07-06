@@ -25,8 +25,9 @@ function TokenGate({ onVerified }) {
 
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center px-4 relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "44px 44px" }} />
-      <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-[#FF2A2A]/5 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "44px 44px" }} />
+      <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-[#FF2A2A]/5 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-[#007AFF]/3 via-transparent to-transparent pointer-events-none" />
       <Link to="/" className="absolute top-6 left-6 text-zinc-500 hover:text-white flex items-center gap-2 text-sm transition-colors group">
         <div className="w-7 h-7 rounded-lg border border-white/10 flex items-center justify-center group-hover:border-white/30 transition-all">
           <ArrowLeft size={14} />
@@ -34,7 +35,7 @@ function TokenGate({ onVerified }) {
       </Link>
       <div className="w-full max-w-sm relative fade-up">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-white/5">
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
             <ShieldCheck size={24} weight="fill" className="text-black" />
           </div>
           <div>
@@ -43,9 +44,9 @@ function TokenGate({ onVerified }) {
           </div>
         </div>
 
-        <div className="card-tactical p-6">
+        <div className="card-glass-strong p-6 rounded-2xl">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 bg-[#FF2A2A]/10 rounded-lg flex items-center justify-center">
+            <div className="w-9 h-9 bg-[#FF2A2A]/10 rounded-xl flex items-center justify-center">
               <Key size={18} weight="bold" className="text-[#FF2A2A]" />
             </div>
             <div>
@@ -63,18 +64,18 @@ function TokenGate({ onVerified }) {
                 onChange={(e) => setTokenInput(e.target.value)}
                 placeholder="XXXX-XXXX-XXXX-XXXX"
                 required
-                className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/40 rounded-lg px-3 py-2.5 text-white text-sm outline-none transition-colors font-mono text-center tracking-widest"
+                className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/30 rounded-xl px-3 py-2.5 text-white text-sm outline-none transition-all font-mono text-center tracking-widest"
               />
             </div>
             {error && (
-              <div className="text-sm border border-[#FF2A2A]/30 bg-[#FF2A2A]/10 rounded-lg px-3 py-2.5 flex items-center gap-2">
+              <div className="text-sm border border-[#FF2A2A]/30 bg-[#FF2A2A]/10 rounded-xl px-3 py-2.5 flex items-center gap-2">
                 <span className="text-[#FF2A2A] text-xs">{error}</span>
               </div>
             )}
             <button
               type="submit"
               disabled={busy || !tokenInput.trim()}
-              className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {busy ? (
                 <span className="flex items-center gap-2">
@@ -123,8 +124,9 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center px-4 relative overflow-hidden">
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "44px 44px" }} />
-      <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-[#FF2A2A]/5 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "44px 44px" }} />
+      <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-[#FF2A2A]/5 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-[#007AFF]/3 via-transparent to-transparent pointer-events-none" />
       <Link to="/" data-testid="back-home-link" className="absolute top-6 left-6 text-zinc-500 hover:text-white flex items-center gap-2 text-sm transition-colors group">
         <div className="w-7 h-7 rounded-lg border border-white/10 flex items-center justify-center group-hover:border-white/30 transition-all">
           <ArrowLeft size={14} />
@@ -132,7 +134,7 @@ function LoginForm() {
       </Link>
       <div className="w-full max-w-sm relative fade-up">
         <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-white/5">
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
             <ShieldCheck size={24} weight="fill" className="text-black" />
           </div>
           <div>
@@ -141,7 +143,7 @@ function LoginForm() {
           </div>
         </div>
 
-        <div className="card-tactical p-6">
+        <div className="card-glass-strong p-6 rounded-2xl">
           <h1 className="font-heading font-black text-2xl tracking-tight mb-1">Bienvenido</h1>
           <p className="text-zinc-500 text-sm mb-6">Acceso exclusivo para monitoristas autorizados.</p>
 
@@ -157,7 +159,7 @@ function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   placeholder="correo@ejemplo.com"
-                  className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/40 rounded-lg pl-9 pr-3 py-2.5 text-white text-sm outline-none transition-colors font-tel"
+                  className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/30 rounded-xl pl-9 pr-3 py-2.5 text-white text-sm outline-none transition-all font-tel"
                 />
               </div>
             </div>
@@ -171,7 +173,7 @@ function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/40 rounded-lg pl-9 pr-9 py-2.5 text-white text-sm outline-none transition-colors font-tel"
+                  className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/30 rounded-xl pl-9 pr-9 py-2.5 text-white text-sm outline-none transition-all font-tel"
                 />
                 <button
                   type="button"
@@ -183,7 +185,7 @@ function LoginForm() {
               </div>
             </div>
             {error && (
-              <div data-testid="login-error" className="text-sm border border-[#FF2A2A]/30 bg-[#FF2A2A]/10 rounded-lg px-3 py-2.5 flex items-center gap-2">
+              <div data-testid="login-error" className="text-sm border border-[#FF2A2A]/30 bg-[#FF2A2A]/10 rounded-xl px-3 py-2.5 flex items-center gap-2">
                 <span className="text-[#FF2A2A]">{error}</span>
               </div>
             )}
@@ -191,7 +193,7 @@ function LoginForm() {
               data-testid="login-submit-button"
               type="submit"
               disabled={busy}
-              className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+              className="w-full bg-white text-black font-bold py-3 rounded-xl hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
             >
               {busy ? (
                 <span className="flex items-center gap-2">

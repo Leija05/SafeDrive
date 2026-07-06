@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   X, Key, Copy, Eye, EyeSlash, Plus, Monitor, Truck,
   CheckCircle, CurrencyCircleDollar, CalendarBlank, Clock,
-  ArrowClockwise,
+  ArrowClockwise, Trash,
 } from "@phosphor-icons/react";
 
 const PLANS = [
@@ -16,7 +16,7 @@ const PLANS = [
 const CYCLES = ["Semanal", "Mensual", "Bimestral", "Trimestral", "Anual"];
 const mx = (n) => `$${n.toLocaleString("es-MX")} MXN`;
 
-export default function TokenManager({ onClose }) {
+export default function TokenManager({ onClose, userRole }) {
   const [tokens, setTokens] = useState([]);
   const [monitorTokens, setMonitorTokens] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +25,10 @@ export default function TokenManager({ onClose }) {
   const [createMode, setCreateMode] = useState(null);
   const [form, setForm] = useState({ name: "", count: 1, max_uses: "", plan_id: "plata", cycle: "Mensual" });
   const [revealed, setRevealed] = useState({});
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const isSuperAdmin = userRole === "superadmin";
 
   useEffect(() => { loadTokens(); }, []);
 
@@ -53,6 +57,21 @@ export default function TokenManager({ onClose }) {
       toast.success(`Suscripción renovada hasta ${new Date(data.expires_at).toLocaleDateString("es-MX")}`);
     } catch {
       toast.error("Error al renovar");
+    }
+  };
+
+  const handleDelete = async (tid) => {
+    setDeleting(true);
+    try {
+      await api.delete(`/auth/site-tokens/${tid}`);
+      setTokens((prev) => prev.filter((t) => t.token !== tid));
+      toast.success("Token eliminado permanentemente");
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Error al eliminar token";
+      toast.error(msg);
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(null);
     }
   };
 
@@ -236,6 +255,25 @@ export default function TokenManager({ onClose }) {
                         className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${t.active && !expired ? "border-[#00E676]/30 text-[#00E676] hover:bg-[#00E676]/5" : "border-zinc-700 text-zinc-600 hover:border-zinc-500"}`}>
                         {t.active ? "Activo" : "Inactivo"}
                       </button>
+                      {isSuperAdmin && t.max_uses === null && confirmDelete !== t.token && (
+                        <button onClick={() => setConfirmDelete(t.token)}
+                          className="px-2 py-1 rounded-lg border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider hover:bg-red-500/10 transition-all flex items-center gap-1">
+                          <Trash size={11} /> Eliminar
+                        </button>
+                      )}
+                      {confirmDelete === t.token && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-red-400 font-bold">¿Eliminar?</span>
+                          <button onClick={() => handleDelete(t.token)} disabled={deleting}
+                            className="px-2 py-1 rounded-lg bg-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider hover:bg-red-500/30 transition-all">
+                            {deleting ? "..." : "Sí"}
+                          </button>
+                          <button onClick={() => setConfirmDelete(null)}
+                            className="px-2 py-1 rounded-lg border border-white/10 text-zinc-400 text-[10px] font-bold uppercase tracking-wider hover:border-white/30 transition-all">
+                            No
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

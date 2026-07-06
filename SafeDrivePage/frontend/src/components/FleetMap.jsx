@@ -130,13 +130,13 @@ export default function FleetMap({ units = [], route, selectedId, onSelect }) {
   return (
     <div className="relative w-full h-full">
       <div className="absolute left-3 bottom-3 z-[600] flex gap-2">
-        <div className="bg-black/70 backdrop-blur-sm text-[10px] font-tel px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400">
+        <div className="bg-black/60 backdrop-blur-md text-[10px] font-tel px-2.5 py-1.5 rounded-lg border border-white/10 text-zinc-400">
           {onlineCount}/{units.length} online
         </div>
       </div>
       {selectedId && (
         <button type="button" onClick={() => setFocusRequest((v) => v + 1)}
-          className="absolute right-3 top-3 z-[600] bg-white/90 hover:bg-white text-black text-xs font-bold px-3 py-2 rounded-lg shadow-lg transition-all flex items-center gap-1.5">
+          className="absolute right-3 top-3 z-[600] bg-black/60 backdrop-blur-md hover:bg-black/80 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/10 shadow-lg transition-all flex items-center gap-1.5">
           <Crosshair size={14} /> Centrar
         </button>
       )}
@@ -150,26 +150,26 @@ export default function FleetMap({ units = [], route, selectedId, onSelect }) {
             <Polyline
               key={`route-${u.id}`}
               positions={unitRoute.corridor}
-              pathOptions={{ color: driverColor(u), weight: selectedId === u.id ? 6 : 3, opacity: selectedId && selectedId !== u.id ? 0.28 : 0.78 }}
+              pathOptions={{ color: driverColor(u), weight: selectedId === u.id ? 6 : 3, opacity: selectedId && selectedId !== u.id ? 0.25 : 0.7 }}
             />
           );
         })}
         {selectedRoute?.corridor && selectedRoute?.tolerance_m && (
-          <Polyline positions={selectedRoute.corridor} pathOptions={{ color: "#ffffff", weight: Math.max(8, selectedRoute.tolerance_m / 55), opacity: 0.1 }} />
+          <Polyline positions={selectedRoute.corridor} pathOptions={{ color: "#ffffff", weight: Math.max(8, selectedRoute.tolerance_m / 55), opacity: 0.08 }} />
         )}
         {selectedRoute?.bridges?.map((b, i) => (
           <Circle key={`b${i}`} center={[b.lat, b.lng]} radius={b.radius_m} pathOptions={{ color: "#007AFF", weight: 1, fillColor: "#007AFF", fillOpacity: 0.12 }} />
         ))}
         {selectedRoute?.dead_zones?.map((d, i) => (
-          <Circle key={`d${i}`} center={[d.lat, d.lng]} radius={d.radius_m} pathOptions={{ color: "#FFB800", weight: 1, dashArray: "6 6", fillColor: "#FFB800", fillOpacity: 0.06 }} />
+          <Circle key={`d${i}`} center={[d.lat, d.lng]} radius={d.radius_m} pathOptions={{ color: "#FFB800", weight: 1, dashArray: "6 6", fillColor: "#FFB800", fillOpacity: 0.05 }} />
         ))}
         {units.map((u) => (
           <Marker key={u.id} position={[u.lat, u.lng]} icon={unitIcon(u)} eventHandlers={{ click: () => onSelect && onSelect(u.id) }}>
             <Popup>
               <div className="font-mono text-xs leading-relaxed" style={{ minWidth: 160 }}>
                 <div className="font-bold text-sm mb-1" style={{ color: driverColor(u) }}>{u.name}</div>
-                <div className="text-zinc-600">{u.driver_name || "—"}</div>
-                <div className="border-t border-zinc-200 my-1.5" />
+                <div className="text-zinc-400">{u.driver_name || "—"}</div>
+                <div className="border-t border-white/10 my-1.5" />
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                   <span>{u.speed?.toFixed(0)} km/h</span>
                   <span style={{ color: STATUS_COLOR_MAP[u.status] || "#000" }}>{u.status}</span>

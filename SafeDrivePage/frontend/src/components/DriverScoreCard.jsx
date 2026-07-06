@@ -37,9 +37,9 @@ export default function DriverScoreCard({ score, dimensions, alertsCount, histor
   const maxDim = Math.max(...Object.values(dimensions || {}), 1);
 
   return (
-    <div className="card-tactical p-4 rounded-xl">
+    <div className="card-premium p-4" style={{ borderRadius: 16 }}>
       <div className="font-heading font-bold flex items-center gap-2 text-sm mb-3">
-        <Gauge size={16} weight="fill" className="text-[#00E676]" /> Score de seguridad
+        <Gauge size={16} weight="fill" style={{ color: scoreColor }} /> Score de seguridad
       </div>
 
       <div className="flex items-center gap-5">
@@ -47,7 +47,7 @@ export default function DriverScoreCard({ score, dimensions, alertsCount, histor
           <RadialGauge score={score} size={96} strokeWidth={8} />
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
-              <div className="text-2xl font-bold font-tel tracking-tight" style={{ color: scoreColor }}>{score}</div>
+              <div className="text-2xl font-bold font-tel tracking-tight" style={{ color: scoreColor, textShadow: scoreColor ? `0 0 20px ${scoreColor}40` : undefined }}>{score}</div>
               <div className="text-[8px] uppercase tracking-widest text-zinc-500 font-tel">Score</div>
             </div>
           </div>

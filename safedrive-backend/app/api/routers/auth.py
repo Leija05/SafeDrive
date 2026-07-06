@@ -439,6 +439,24 @@ async def toggle_site_token(tid: str, user: dict = Depends(require_admin)):
     return {"ok": True, "active": new_active}
 
 
+@router.delete("/site-tokens/{tid}")
+async def delete_site_token(tid: str, user: dict = Depends(require_superadmin)):
+    """Delete an unlimited-use site token (superadmin only)."""
+    db = get_db()
+    tok = await db.site_tokens.find_one({"token": tid})
+    if not tok:
+        raise HTTPException(status_code=404, detail="Token no encontrado")
+
+    if tok.get("max_uses") is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="No se puede eliminar un token con usos limitados. Los tokens con usos limitados expiran naturalmente."
+        )
+
+    await db.site_tokens.delete_one({"token": tid})
+    return {"ok": True}
+
+
 @router.post("/renew-token/{tid}")
 async def renew_site_token(tid: str, user: dict = Depends(require_admin)):
     """Extend a monitorista token expiration by its cycle length."""

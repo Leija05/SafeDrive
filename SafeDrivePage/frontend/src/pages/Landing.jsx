@@ -61,10 +61,10 @@ export default function Landing() {
 
   return (
     <div className="page-enter bg-[#050505] text-white min-h-screen">
-      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10">
+      <header className="sticky top-0 z-50 bg-black/70 backdrop-blur-2xl border-b border-white/[0.04]">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center">
+            <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
               <ShieldCheck size={22} weight="fill" className="text-black" />
             </div>
             <span className="font-heading font-black text-lg tracking-tight">
@@ -88,7 +88,7 @@ export default function Landing() {
             <Link
               to="/login"
               data-testid="nav-login-link"
-              className="text-sm bg-white text-black font-bold px-4 py-2 rounded-lg hover:bg-zinc-200 transition-colors"
+              className="text-sm bg-white text-black font-bold px-4 py-2 rounded-xl hover:bg-zinc-200 transition-all hover-lift"
             >
               Acceso monitoristas
             </Link>
@@ -108,16 +108,16 @@ export default function Landing() {
             Ecosistema Fronterizo · Nuevo Laredo
           </div>
           <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight max-w-3xl leading-[1.05] fade-up" style={{ animationDelay: "0.1s" }}>
-            Seguridad activa que <span className="text-[#FF2A2A]">previene</span> el robo y los accidentes en tiempo real.
+            Seguridad activa que <span className="text-gradient font-black">previene</span> el robo y los accidentes en tiempo real.
           </h1>
           <p className="text-zinc-300 text-base md:text-lg mt-6 max-w-xl fade-up" style={{ animationDelay: "0.2s" }}>
             No es un simple rastreador. SafeDrive GPS protege la vida del chofer, el patrimonio de la empresa y asegura los tiempos de cruce internacional.
           </p>
           <div className="flex flex-wrap gap-3 mt-8 fade-up" style={{ animationDelay: "0.3s" }}>
-            <a href="#planes" data-testid="hero-plans-cta" className="bg-white text-black font-bold px-6 py-3 rounded-lg hover:bg-zinc-200 hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 flex items-center gap-2 shadow-lg shadow-white/10">
+            <a href="#planes" data-testid="hero-plans-cta" className="bg-white text-black font-bold px-6 py-3 rounded-xl hover:bg-zinc-200 hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 flex items-center gap-2 shadow-lg shadow-white/10">
               Ver planes <ArrowRight size={18} weight="bold" />
             </a>
-            <Link to="/login" data-testid="hero-login-cta" className="border border-white/20 hover:border-white/50 font-bold px-6 py-3 rounded-lg transition-colors">
+            <Link to="/login" data-testid="hero-login-cta" className="border border-white/20 hover:border-white/50 font-bold px-6 py-3 rounded-xl transition-all">
               Centro de control
             </Link>
           </div>
@@ -133,8 +133,8 @@ export default function Landing() {
             { icon: Cpu, t: "Backend Analítico", s: "El Cerebro", d: "Geoespacial con corredores de tolerancia, filtro de acelerometro e inteligencia de cobertura." },
             { icon: Monitor, t: "Dashboard Web", s: "Centro de Control Bento", d: "WebSockets en vivo, gestion por excepcion y difusion automatizada a autoridades." },
           ].map((c, i) => (
-            <div key={c.t} className="card-tactical p-8 hover:border-white/20 transition-all duration-300 fade-up" style={{ animationDelay: `${0.1 * i}s` }}>
-              <div className="w-12 h-12 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center mb-5">
+            <div key={c.t} className="card-premium p-8 hover-lift fade-up" style={{ animationDelay: `${0.1 * i}s`, borderRadius: 20 }}>
+              <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mb-5">
                 <c.icon size={26} weight="duotone" className="text-white" />
               </div>
               <div className="font-heading font-bold text-lg">{c.t}</div>
@@ -150,8 +150,8 @@ export default function Landing() {
         <h2 className="font-heading font-black text-2xl sm:text-3xl tracking-tight mb-10">Protección en cada kilómetro</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map((f, i) => (
-            <div key={f.t} className="card-tactical p-6 hover:border-white/20 transition-all duration-300 fade-up hover-lift card-glow" style={{ animationDelay: `${0.05 * i}s` }}>
-              <div className="w-10 h-10 rounded-lg bg-[#00E676]/10 border border-[#00E676]/20 flex items-center justify-center mb-4">
+            <div key={f.t} className="card-premium p-6 hover-lift fade-up" style={{ animationDelay: `${0.05 * i}s`, borderRadius: 16 }}>
+              <div className="w-10 h-10 rounded-xl bg-[#00E676]/8 border border-[#00E676]/15 flex items-center justify-center mb-4">
                 <f.icon size={22} weight="duotone" className="text-[#00E676]" />
               </div>
               <div className="font-bold mb-1.5 text-[15px]">{f.t}</div>
@@ -162,8 +162,8 @@ export default function Landing() {
       </section>
 
       <section className="max-w-6xl mx-auto px-4 py-24">
-        <div className="card-tactical p-8 lg:p-12 relative overflow-hidden hover:border-white/20 transition-all duration-300">
-          <Bridge size={160} weight="duotone" className="absolute -right-8 -bottom-8 text-[#007AFF]/8" />
+        <div className="card-premium p-8 lg:p-12 relative overflow-hidden hover-lift" style={{ borderRadius: 20 }}>
+          <Bridge size={160} weight="duotone" className="absolute -right-8 -bottom-8 text-[#007AFF]/6" />
           <div className="relative">
             <div className="inline-flex items-center gap-2 text-[#007AFF] text-xs font-tel uppercase tracking-[0.2em] mb-4">
               <Bridge size={16} weight="fill" /> Factor Nuevo Laredo
@@ -196,13 +196,13 @@ export default function Landing() {
         <h2 className="font-heading font-black text-2xl sm:text-3xl tracking-tight mb-2">Paquetes de capacidad</h2>
         <p className="text-zinc-400 mb-8 text-sm">Precios fijos por paquete. Si tienes menos choferes, el precio se mantiene.</p>
 
-        <div className="inline-flex flex-wrap gap-1 border border-white/10 rounded-lg p-1 mb-8">
+        <div className="inline-flex flex-wrap gap-1 border border-white/10 rounded-xl p-1 mb-8">
           {CYCLES.map((c) => (
             <button
               key={c}
               data-testid={`cycle-${c}`}
               onClick={() => setCycle(c)}
-              className={`px-4 py-1.5 rounded text-sm font-medium transition-all ${cycle === c ? "bg-white text-black shadow-sm" : "text-zinc-400 hover:text-white"}`}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${cycle === c ? "bg-white text-black shadow-sm" : "text-zinc-400 hover:text-white"}`}
             >
               {c}
             </button>
@@ -214,7 +214,8 @@ export default function Landing() {
             <div
               key={p.id}
               data-testid={`plan-${p.id}`}
-              className={`card-tactical p-6 flex flex-col transition-all duration-300 hover-lift ${p.highlight ? "border-white/30 ring-1 ring-white/20 scale-[1.02]" : "hover:border-white/20"}`}
+              className={`card-premium p-6 flex flex-col transition-all duration-300 hover-lift ${p.highlight ? "border-white/20 ring-1 ring-white/10 scale-[1.02]" : ""}`}
+              style={{ borderRadius: 20 }}
             >
               {p.highlight && (
                 <div className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#00E676] mb-3 bg-[#00E676]/10 px-2.5 py-1 rounded-full self-start">
@@ -239,7 +240,7 @@ export default function Landing() {
               <button
                 data-testid={`add-plan-${p.id}`}
                 onClick={() => addToCart({ key: `plan-${p.id}`, name: `${p.name} (${cycle})`, price: p.prices[cycle] })}
-                className={`mt-6 font-bold py-3 rounded-lg transition-all ${p.highlight ? "bg-white text-black hover:bg-zinc-200 shadow-lg shadow-white/10" : "border border-white/15 hover:border-white/50 hover:bg-white/5"}`}
+                className={`mt-6 font-bold py-3 rounded-xl transition-all ${p.highlight ? "bg-white text-black hover:bg-zinc-200 shadow-lg shadow-white/10" : "border border-white/15 hover:border-white/40 hover:bg-white/5"}`}
               >
                 Agregar al carrito
               </button>
@@ -250,9 +251,9 @@ export default function Landing() {
         <h3 className="font-heading font-bold text-lg mt-16 mb-5">Costo único inicial (Onboarding)</h3>
         <div className="grid md:grid-cols-2 gap-4">
           {onboarding.map((o) => (
-            <div key={o.id} data-testid={`onboarding-${o.id}`} className="card-tactical p-5 flex items-center justify-between gap-4 hover:border-white/20 transition-all">
+            <div key={o.id} data-testid={`onboarding-${o.id}`} className="card-premium p-5 flex items-center justify-between gap-4 hover-lift" style={{ borderRadius: 16 }}>
               <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 mt-0.5">
                   <Truck size={18} className="text-zinc-300" />
                 </div>
                 <div>
@@ -264,7 +265,7 @@ export default function Landing() {
               <button
                 data-testid={`add-onboarding-${o.id}`}
                 onClick={() => addToCart({ key: `onb-${o.id}`, name: o.name, price: o.price })}
-                className="shrink-0 border border-white/15 hover:border-white/50 font-bold px-4 py-2 rounded-lg text-sm transition-all hover:bg-white/5"
+                className="shrink-0 border border-white/15 hover:border-white/40 font-bold px-4 py-2 rounded-xl text-sm transition-all hover:bg-white/5"
               >
                 Agregar
               </button>
@@ -273,10 +274,10 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-white/10 py-12 text-center">
+      <footer className="border-t border-white/[0.04] py-12 text-center">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
+            <div className="w-6 h-6 bg-white rounded-lg flex items-center justify-center">
               <ShieldCheck size={14} weight="fill" className="text-black" />
             </div>
             <span className="font-heading font-black tracking-tight">SafeDrive<span className="text-[#FF2A2A]">GPS</span></span>
@@ -290,12 +291,12 @@ export default function Landing() {
       {cartOpen && (
         <div className="fixed inset-0 z-[100] flex justify-end">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm fade-in" onClick={() => setCartOpen(false)} />
-          <div data-testid="cart-drawer" className="relative w-full max-w-md bg-[#0a0a0a] border-l border-white/10 h-full flex flex-col slide-in-right">
-            <div className="px-5 h-16 flex items-center justify-between border-b border-white/10">
+          <div data-testid="cart-drawer" className="relative w-full max-w-md bg-[#0a0a0a] border-l border-white/[0.06] h-full flex flex-col slide-in-right">
+            <div className="px-5 h-16 flex items-center justify-between border-b border-white/[0.06]">
               <span className="font-heading font-bold flex items-center gap-2 text-base">
                 <ShoppingCart size={18} weight="fill" /> Carrito
               </span>
-              <button data-testid="close-cart-button" onClick={() => setCartOpen(false)} className="w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
+              <button data-testid="close-cart-button" onClick={() => setCartOpen(false)} className="w-8 h-8 rounded-lg border border-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
                 <X size={16} />
               </button>
             </div>
@@ -308,7 +309,7 @@ export default function Landing() {
                 </div>
               )}
               {cart.map((i) => (
-                <div key={i.key} className="card-tactical p-3.5 flex items-center justify-between">
+                <div key={i.key} className="card-premium p-3.5 flex items-center justify-between" style={{ borderRadius: 12 }}>
                   <div>
                     <div className="text-sm font-medium">{i.name}</div>
                     <div className="font-tel text-zinc-400 text-sm mt-0.5">{mx(i.price)}</div>
@@ -323,7 +324,7 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-            <div className="p-4 border-t border-white/10 space-y-3 bg-black/30">
+            <div className="p-4 border-t border-white/[0.06] space-y-3 bg-black/20">
               <div className="flex items-center justify-between">
                 <span className="text-zinc-400 text-sm uppercase tracking-wider font-tel">Total</span>
                 <span data-testid="cart-total" className="font-tel font-bold text-2xl">{mx(total)}</span>
@@ -332,10 +333,10 @@ export default function Landing() {
                 Recibe la información del plan por WhatsApp o correo.
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <button data-testid="checkout-whatsapp" onClick={orderWhatsApp} className="bg-[#25D366] text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                <button data-testid="checkout-whatsapp" onClick={orderWhatsApp} className="bg-[#25D366] text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
                   <WhatsappLogo size={20} weight="fill" /> WhatsApp
                 </button>
-                <button data-testid="checkout-email" onClick={orderEmail} className="border border-white/15 hover:border-white/50 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all hover:bg-white/5">
+                <button data-testid="checkout-email" onClick={orderEmail} className="border border-white/15 hover:border-white/40 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all hover:bg-white/5">
                   <EnvelopeSimple size={20} /> Correo
                 </button>
               </div>

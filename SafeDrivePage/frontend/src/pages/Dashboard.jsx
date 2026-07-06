@@ -37,14 +37,43 @@ function routeConfigFor(unit, globalRoute) {
   return globalRoute;
 }
 
-function Metric({ label, value, icon: Icon, color, testid, trend }) {
+function AnimatedValue({ value, color, decimals = 0 }) {
+  const [display, setDisplay] = useState(0);
+  const prev = useRef(0);
+  useEffect(() => {
+    const start = prev.current;
+    const end = Number(value) || 0;
+    prev.current = end;
+    if (start === end) { setDisplay(end); return; }
+    const duration = 800;
+    const startTime = performance.now();
+    const tick = (now) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(start + (end - start) * eased);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [value]);
+  return <span style={{ color }} className="font-tel text-3xl font-semibold tracking-tight metric-value">{display.toFixed(decimals)}</span>;
+}
+
+function Metric({ label, value, icon: Icon, color, testid, trend, suffix }) {
   return (
-    <div data-testid={testid} className="card-tactical card-glow p-4 flex items-center justify-between transition-all duration-200 group rounded-xl overflow-hidden">
-      <div className="relative">
-        <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-zinc-500 font-tel">{label}</div>
-        <div className="font-tel text-3xl font-semibold mt-1.5 tracking-tight metric-value" style={{ color: color || "#fff" }}>{value}</div>
+    <div data-testid={testid} className="card-premium p-4 flex items-center justify-between transition-all duration-300 group overflow-hidden">
+      <div className="relative z-10">
+        <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500 font-tel">{label}</div>
+        <div className="mt-1.5">
+          {suffix ? (
+            <span style={{ color: color || "#fff" }} className="font-tel text-3xl font-semibold tracking-tight metric-value">
+              {value}{suffix}
+            </span>
+          ) : (
+            <AnimatedValue value={value} color={color || "#fff"} />
+          )}
+        </div>
         {trend !== undefined && (
-          <div className="flex items-center gap-1 mt-0.5">
+          <div className="flex items-center gap-1 mt-1">
             <span className={`text-[10px] font-bold font-tel ${trend >= 0 ? "text-[#00E676]" : "text-[#FF2A2A]"}`}>
               {trend >= 0 ? "+" : ""}{trend}
             </span>
@@ -52,8 +81,8 @@ function Metric({ label, value, icon: Icon, color, testid, trend }) {
           </div>
         )}
       </div>
-      <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:border-white/20 group-hover:scale-105 transition-all duration-200">
-        <Icon size={24} weight="duotone" style={{ color: color || "#71717A" }} />
+      <div className="relative z-10 w-11 h-11 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center group-hover:border-white/15 group-hover:scale-110 group-hover:bg-white/[0.06] transition-all duration-300">
+        <Icon size={22} weight="duotone" style={{ color: color || "#71717A" }} />
       </div>
     </div>
   );
@@ -229,48 +258,47 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white">
-      <header className="sticky top-0 z-[1000] bg-black/80 backdrop-blur-xl border-b border-white/10">
+      <header className="sticky top-0 z-[1000] bg-black/70 backdrop-blur-2xl border-b border-white/[0.04]">
         <div className="px-4 lg:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <ShieldCheck size={18} weight="fill" className="text-black" />
+            <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/5">
+              <ShieldCheck size={20} weight="fill" className="text-black" />
             </div>
             <div>
               <div className="font-heading font-black tracking-tight leading-none text-sm">SafeDrive<span className="text-[#FF2A2A]">GPS</span></div>
-              <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500 font-tel">Centro de Control · NLD</div>
+              <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-600 font-tel">Centro de Control · NLD</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {safetyScore !== null && (
-              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-tel px-2.5 py-1.5 rounded-lg border"
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-tel px-2.5 py-1.5 rounded-xl border card-glass"
                 style={{
-                  borderColor: safetyScore >= 75 ? "rgba(0,230,118,0.25)" : safetyScore >= 50 ? "rgba(255,184,0,0.25)" : "rgba(255,42,42,0.25)",
+                  borderColor: safetyScore >= 75 ? "rgba(0,230,118,0.2)" : safetyScore >= 50 ? "rgba(255,184,0,0.2)" : "rgba(255,42,42,0.2)",
                   color: safetyScore >= 75 ? "#00E676" : safetyScore >= 50 ? "#FFB800" : "#FF2A2A",
-                  background: safetyScore >= 75 ? "rgba(0,230,118,0.05)" : safetyScore >= 50 ? "rgba(255,184,0,0.05)" : "rgba(255,42,42,0.05)",
                 }}>
                 <Gauge size={13} weight="fill" /> {safetyScore}
               </div>
             )}
-            <div className={`hidden sm:flex items-center gap-2 text-xs font-tel px-3 py-1.5 rounded-lg border transition-all ${hasCritical ? "border-[#FF2A2A]/40 text-[#FF2A2A] pulse-critical bg-[#FF2A2A]/5" : "border-[#00E676]/30 text-[#00E676] bg-[#00E676]/5"}`}>
-              <span className="w-2 h-2 rounded-full" style={{ background: hasCritical ? "#FF2A2A" : "#00E676" }} />
+            <div className={`hidden sm:flex items-center gap-2 text-[11px] font-tel px-3 py-1.5 rounded-xl border transition-all ${hasCritical ? "border-[#FF2A2A]/30 text-[#FF2A2A] pulse-critical bg-[#FF2A2A]/[0.04]" : "border-[#00E676]/20 text-[#00E676] bg-[#00E676]/[0.04]"}`}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: hasCritical ? "#FF2A2A" : "#00E676" }} />
               {hasCritical ? "ALERTA ACTIVA" : "SISTEMA NOMINAL"}
             </div>
             {user?.role === "superadmin" && (
               <button onClick={() => navigate("/admin")}
-                className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all border border-transparent hover:border-amber-500/30">
-                <ShieldCheck size={15} />
-                <span className="hidden sm:inline text-xs">Admin</span>
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10 transition-all border border-transparent hover:border-amber-500/20">
+                <ShieldCheck size={14} />
+                <span className="hidden sm:inline">Admin</span>
               </button>
             )}
             <button onClick={() => setShowTokenManager(true)}
-              className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
-              <Key size={15} />
-              <span className="hidden sm:inline text-xs">Tokens</span>
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
+              <Key size={14} />
+              <span className="hidden sm:inline">Tokens</span>
             </button>
             <div className="relative" ref={notifRef}>
               <button onClick={() => setShowNotif((v) => !v)}
-                className="relative flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
-                {recentAlerts.length > 0 ? <BellRinging size={16} weight="fill" className="text-[#FF2A2A]" /> : <Bell size={16} />}
+                className="relative flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
+                {recentAlerts.length > 0 ? <BellRinging size={15} weight="fill" className="text-[#FF2A2A]" /> : <Bell size={15} />}
                 {recentAlerts.length > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FF2A2A] text-white text-[9px] font-bold flex items-center justify-center font-tel">
                     {recentAlerts.length > 9 ? "9+" : recentAlerts.length}
@@ -278,8 +306,8 @@ export default function Dashboard() {
                 )}
               </button>
               {showNotif && (
-                <div className="absolute right-0 top-full mt-2 w-72 max-h-96 overflow-y-auto card-tactical shadow-2xl rounded-xl z-[2000] fade-up">
-                  <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                <div className="absolute right-0 top-full mt-2 w-72 max-h-96 overflow-y-auto card-glass-strong shadow-2xl rounded-xl z-[2000] fade-up">
+                  <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                     <span className="font-heading font-bold text-sm flex items-center gap-2">
                       <Bell size={14} weight="fill" /> Notificaciones
                     </span>
@@ -309,7 +337,7 @@ export default function Dashboard() {
                       })}
                     </div>
                   )}
-                  <div className="border-t border-white/5 p-2">
+                  <div className="border-t border-white/[0.04] p-2">
                     <button onClick={() => setShowNotif(false)}
                       className="w-full text-center text-[11px] text-zinc-500 hover:text-white py-1.5 transition-colors font-tel">
                       Cerrar
@@ -319,27 +347,27 @@ export default function Dashboard() {
               )}
             </div>
             <button data-testid="logout-button" onClick={() => { logout(); navigate("/"); }}
-              className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
-              <SignOut size={16} />
-              <span className="hidden sm:inline text-xs">Salir</span>
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
+              <SignOut size={15} />
+              <span className="hidden sm:inline">Salir</span>
             </button>
           </div>
         </div>
       </header>
 
       <main className="page-enter p-3 lg:p-4 min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] overflow-y-auto lg:overflow-hidden flex flex-col gap-3">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 shrink-0">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 shrink-0">
           <Metric testid="metric-total" label="Unidades" value={stats?.total_units ?? 0} icon={Truck} color="#fff" />
           <Metric testid="metric-enruta" label="En ruta" value={stats?.en_ruta ?? 0} icon={NavigationArrow} color="#00E676" />
           <Metric testid="metric-critical" label="Criticas" value={stats?.critical_alerts ?? 0} icon={Siren} color="#FF2A2A" />
           <Metric testid="metric-warning" label="Avisos" value={stats?.warning_alerts ?? 0} icon={Warning} color="#FFB800" />
           <Metric testid="metric-cruce" label="Cruce fiscal" value={stats?.cruce_fiscal ?? 0} icon={Bridge} color="#007AFF" />
-          <Metric testid="metric-avgcross" label="Espera prom." value={`${stats?.avg_crossing_min ?? 0}m`} icon={Gauge} color="#A1A1AA" />
+          <Metric testid="metric-avgcross" label="Espera prom." value={stats?.avg_crossing_min ?? 0} suffix="m" icon={Gauge} color="#A1A1AA" />
         </div>
 
         <div className="min-h-0 flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(380px,1fr)] gap-3 overflow-hidden">
           <section className="min-h-0 grid grid-rows-[minmax(280px,1fr)_minmax(260px,0.9fr)] gap-3 overflow-hidden">
-            <div data-testid="fleet-map-panel" className="card-tactical overflow-hidden transition-all duration-200 relative min-h-0 rounded-xl">
+            <div data-testid="fleet-map-panel" className="card-premium overflow-hidden transition-all duration-200 relative min-h-0" style={{ borderRadius: 16 }}>
               {hasCritical && (
                 <div className="absolute top-0 left-0 right-0 z-[500] bg-[#FF2A2A] text-black text-[11px] font-bold uppercase tracking-[0.2em] px-4 py-1.5 text-center pulse-critical flex items-center justify-center gap-2">
                   <Siren size={14} weight="fill" /> Alerta critica activa
@@ -360,21 +388,22 @@ export default function Dashboard() {
             </div>
 
             <div className="min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(300px,0.9fr)_minmax(0,1.4fr)] gap-3 overflow-hidden">
-              <div data-testid="fleet-list" className="card-tactical flex flex-col min-h-0 rounded-xl">
-                <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
+              <div data-testid="fleet-list" className="card-premium flex flex-col min-h-0" style={{ borderRadius: 16 }}>
+                <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between gap-2 shrink-0">
                   <span className="font-heading font-bold flex items-center gap-2 text-sm">
                     <Truck size={16} weight="duotone" /> Conductores
                   </span>
-                  <button onClick={openCreateUser} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white text-black font-bold flex items-center gap-1.5 hover:bg-zinc-200 transition-all">
+                  <button onClick={openCreateUser} className="text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-black font-bold flex items-center gap-1.5 hover:bg-zinc-200 transition-all hover-lift">
                     <UserPlus size={13} weight="bold" /> Nuevo
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
                   {helpdeskUnits.map((u) => {
                     const unitScore = scores.find((s) => s.unit_id === u.id);
+                    const isSelected = selected === u.id;
                     return (
                     <button key={u.id} data-testid={`unit-card-${u.name}`} onClick={() => setSelected(u.id)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all hover-lift ${selected === u.id ? "border-white/40 bg-white/[0.06]" : "border-white/10 hover:border-white/25 hover:bg-white/[0.02]"} ${alertUnitIds.has(u.id) ? "ring-1 ring-[#FF2A2A]/40" : ""}`}>
+                      className={`w-full text-left p-3 rounded-xl border transition-all duration-200 ${isSelected ? "border-white/30 bg-white/[0.06] shadow-lg" : "border-white/[0.06] hover:border-white/15 hover:bg-white/[0.02]"} ${alertUnitIds.has(u.id) ? "ring-1 ring-[#FF2A2A]/30" : ""}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-black/30 status-dot" style={{ background: getDriverColor(u) }} />
@@ -399,10 +428,10 @@ export default function Dashboard() {
                         )}
                       </div>
                       <div className="flex gap-2 mt-2.5">
-                        <span onClick={(e) => { e.stopPropagation(); openRouteEditor(u); }} className="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-[#007AFF] hover:border-[#007AFF]/60 hover:bg-[#007AFF]/5 flex items-center gap-1 transition-all cursor-pointer">
+                        <span onClick={(e) => { e.stopPropagation(); openRouteEditor(u); }} className="text-[11px] px-2 py-1 rounded-xl border border-white/[0.08] text-[#007AFF] hover:border-[#007AFF]/50 hover:bg-[#007AFF]/5 flex items-center gap-1 transition-all cursor-pointer">
                           <NavigationArrow size={12} /> Ruta
                         </span>
-                        <span onClick={(e) => { e.stopPropagation(); openEditUser(u); }} className="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-zinc-300 hover:border-white/40 hover:bg-white/5 flex items-center gap-1 transition-all cursor-pointer">
+                        <span onClick={(e) => { e.stopPropagation(); openEditUser(u); }} className="text-[11px] px-2 py-1 rounded-xl border border-white/[0.08] text-zinc-400 hover:border-white/30 hover:bg-white/5 flex items-center gap-1 transition-all cursor-pointer">
                           <PencilSimple size={12} /> Editar
                         </span>
                       </div>
@@ -431,7 +460,7 @@ export default function Dashboard() {
                   );
                 })()}
                 {scores.length === 0 && (
-                  <div className="card-tactical p-4 rounded-xl">
+                  <div className="card-premium p-4" style={{ borderRadius: 16 }}>
                     <div className="font-heading font-bold flex items-center gap-2 text-sm">
                       <Gauge size={16} className="text-zinc-500" /> Score de seguridad
                     </div>
@@ -441,7 +470,8 @@ export default function Dashboard() {
                   </div>
                 )}
                 {selectedUnit && (
-                  <div className="card-tactical p-4 rounded-xl border-l-[3px] transition-all" style={{ borderLeftColor: getDriverColor(selectedUnit) }}>
+                  <div className="card-premium p-4 relative overflow-hidden" style={{ borderRadius: 16 }}>
+                    <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full" style={{ background: getDriverColor(selectedUnit), boxShadow: `0 0 12px ${getDriverColor(selectedUnit)}` }} />
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-heading font-bold truncate text-sm">{selectedUnit.name}</div>
@@ -466,7 +496,7 @@ export default function Dashboard() {
                   </div>
                 )}
                 {!selectedUnit && (
-                  <div className="card-tactical p-4 rounded-xl flex items-center justify-center">
+                  <div className="card-premium p-4 flex items-center justify-center" style={{ borderRadius: 16 }}>
                     <p className="text-zinc-600 text-sm font-tel">Selecciona una unidad del mapa o la lista</p>
                   </div>
                 )}
@@ -475,8 +505,8 @@ export default function Dashboard() {
           </section>
 
           <aside className="min-h-0 grid grid-rows-[minmax(280px,1fr)_minmax(220px,0.7fr)] gap-3 overflow-hidden">
-            <div data-testid="alert-panel" className="card-tactical flex flex-col min-h-0 rounded-xl">
-              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between shrink-0">
+            <div data-testid="alert-panel" className="card-premium flex flex-col min-h-0" style={{ borderRadius: 16 }}>
+              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
                 <span className="font-heading font-bold flex items-center gap-2 text-sm">
                   <Siren size={16} className="text-[#FF2A2A]" weight="fill" /> Alertas activas
                 </span>
@@ -485,7 +515,7 @@ export default function Dashboard() {
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {alerts.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-[#00E676]/10 border border-[#00E676]/20 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-2xl bg-[#00E676]/8 border border-[#00E676]/15 flex items-center justify-center">
                       <CheckCircle size={24} className="text-[#00E676]" weight="fill" />
                     </div>
                     <p className="text-zinc-600 text-sm font-tel">Sin alertas activas</p>
@@ -497,15 +527,15 @@ export default function Dashboard() {
                   const col = a.severity === "critical" ? "#FF2A2A" : "#FFB800";
                   return (
                     <div key={a.id} data-testid={`alert-${a.id}`}
-                      className={`p-3 rounded-xl border transition-all ${a.severity === "critical" ? "border-[#FF2A2A]/30 bg-[#FF2A2A]/5 pulse-critical" : "border-[#FFB800]/20 bg-[#FFB800]/5"}`}>
+                      className={`p-3 rounded-xl border transition-all ${a.severity === "critical" ? "border-[#FF2A2A]/25 bg-[#FF2A2A]/[0.04] pulse-critical" : "border-[#FFB800]/15 bg-[#FFB800]/[0.03]"}`}>
                       <div className="flex items-start gap-2.5">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${col}15` }}>
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${col}12` }}>
                           <Icon size={16} weight="fill" style={{ color: col }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-tel font-semibold text-sm">{a.unit_name}</span>
-                            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-tel font-bold" style={{ color: col, background: `${col}1a` }}>{a.type}</span>
+                            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-tel font-bold" style={{ color: col, background: `${col}14` }}>{a.type}</span>
                           </div>
                           <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{a.message}</p>
                           <div className="flex gap-3 mt-2.5">
@@ -527,8 +557,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div data-testid="crossings-panel" className="card-tactical flex flex-col min-h-0 rounded-xl">
-              <div className="px-4 py-3 border-b border-white/10 font-heading font-bold flex items-center gap-2 shrink-0 text-sm">
+            <div data-testid="crossings-panel" className="card-premium flex flex-col min-h-0" style={{ borderRadius: 16 }}>
+              <div className="px-4 py-3 border-b border-white/[0.06] font-heading font-bold flex items-center gap-2 shrink-0 text-sm">
                 <Bridge size={16} weight="duotone" className="text-[#007AFF]" /> Cruce transfronterizo
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -539,7 +569,7 @@ export default function Dashboard() {
                   </div>
                 )}
                 {stats?.recent_crossings?.map((c) => (
-                  <div key={c.id} className="p-3 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition-all">
+                  <div key={c.id} className="p-3 rounded-xl border border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03] transition-all">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <span className="w-2 h-2 rounded-full bg-[#007AFF]" />
@@ -558,13 +588,13 @@ export default function Dashboard() {
 
       <div className="fixed right-4 bottom-4 z-[1800] flex flex-col items-end gap-3">
         {chatOpen && (
-          <div className="w-[min(92vw,760px)] h-[min(76vh,560px)] card-tactical shadow-2xl grid grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-xl fade-up" style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.5)" }}>
-            <div className="border-r border-white/10 flex flex-col min-w-0 min-h-0 bg-black/30">
-              <div className="px-3 py-3.5 border-b border-white/10 flex items-center justify-between shrink-0">
+          <div className="w-[min(92vw,760px)] h-[min(76vh,560px)] card-glass-strong shadow-2xl grid grid-cols-[220px_minmax(0,1fr)] overflow-hidden rounded-2xl fade-up" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
+            <div className="border-r border-white/[0.06] flex flex-col min-w-0 min-h-0 bg-black/20">
+              <div className="px-3 py-3.5 border-b border-white/[0.06] flex items-center justify-between shrink-0">
                 <span className="font-heading font-bold flex items-center gap-2 text-sm tracking-tight">
                   <ChatCircleDots size={15} weight="fill" /> Conversaciones
                 </span>
-                <button onClick={() => setChatOpen(false)} className="w-7 h-7 rounded-lg border border-white/10 flex items-center justify-center text-zinc-500 hover:text-white hover:border-white/30 transition-all">
+                <button onClick={() => setChatOpen(false)} className="w-7 h-7 rounded-lg border border-white/[0.08] flex items-center justify-center text-zinc-500 hover:text-white hover:border-white/30 transition-all">
                   <X size={14} />
                 </button>
               </div>
@@ -573,7 +603,7 @@ export default function Dashboard() {
                   const isAlert = alertUnitIds.has(u.id);
                   return (
                     <button key={u.id} onClick={() => setSelected(u.id)}
-                      className={`w-full text-left p-2.5 rounded-xl border transition-all ${selected === u.id ? "border-white/25 bg-white/[0.06]" : "border-transparent hover:border-white/10 hover:bg-white/[0.02]"} ${isAlert ? "ring-1 ring-[#FF2A2A]/30" : ""}`}>
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all ${selected === u.id ? "border-white/20 bg-white/[0.06]" : "border-transparent hover:border-white/10 hover:bg-white/[0.02]"} ${isAlert ? "ring-1 ring-[#FF2A2A]/30" : ""}`}>
                       <div className="flex items-center gap-2.5">
                         <span className="relative shrink-0">
                           <span className="block w-2.5 h-2.5 rounded-full ring-2 ring-black/30" style={{ background: getDriverColor(u) }} />
@@ -593,7 +623,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex flex-col min-w-0 min-h-0">
-              <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between shrink-0 bg-black/10">
+              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0 bg-black/20">
                 <span className="font-heading font-bold text-sm truncate flex items-center gap-2">
                   {selectedUnit ? (
                     <span className="w-2.5 h-2.5 rounded-full ring-2 ring-black/30 shrink-0" style={{ background: getDriverColor(selectedUnit) }} />
@@ -637,7 +667,7 @@ export default function Dashboard() {
                           )}
                           {!isBase && !showAvatar && <span className="w-5 shrink-0" />}
                           <div className={`group relative max-w-[72%] ${showAvatar ? "mt-0" : ""}`}>
-                            <div className={`px-3.5 py-2.5 text-sm leading-relaxed break-words ${isBase ? "bg-white text-black rounded-2xl rounded-br-md" : "bg-[#1a1a1a] text-white border border-white/10 rounded-2xl rounded-bl-md"}`}>
+                            <div className={`px-3.5 py-2.5 text-sm leading-relaxed break-words ${isBase ? "bg-white text-black rounded-2xl rounded-br-md shadow-lg" : "bg-[#1a1a1a] text-white border border-white/[0.06] rounded-2xl rounded-bl-md"}`}>
                               {m.text}
                               <div className={`flex items-center gap-1.5 mt-1.5 ${isBase ? "justify-end" : "justify-start"}`}>
                                 {m.quick && (
@@ -657,7 +687,7 @@ export default function Dashboard() {
                     })}
                     <div ref={chatEndRef} />
                   </div>
-                  <div className="p-3 border-t border-white/10 shrink-0 bg-black/30">
+                  <div className="p-3 border-t border-white/[0.06] shrink-0 bg-black/20">
                     <div className="flex flex-wrap gap-1.5 mb-3">
                       {[
                         { label: "Tráfico detenido", icon: Warning },
@@ -666,7 +696,7 @@ export default function Dashboard() {
                         { label: "Llamar a base", icon: CellSignalHigh },
                       ].map(({ label, icon: Icon }) => (
                         <button key={label} data-testid={`quick-${label}`} onClick={() => sendChat(label, true)}
-                          className="text-[11px] px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400 hover:border-white/30 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1">
+                          className="text-[11px] px-2.5 py-1 rounded-lg border border-white/[0.08] text-zinc-400 hover:border-white/30 hover:text-white hover:bg-white/5 transition-all flex items-center gap-1">
                           <Icon size={11} /> {label}
                         </button>
                       ))}
@@ -675,7 +705,7 @@ export default function Dashboard() {
                       <input data-testid="chat-input" value={chatText} onChange={(e) => setChatText(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && sendChat(chatText)}
                         placeholder="Mensaje desde base…"
-                        className="flex-1 bg-[#0d0d0d] border border-white/10 focus:border-white/40 rounded-xl px-4 py-2.5 text-sm outline-none min-w-0 transition-all placeholder:text-zinc-600" />
+                        className="flex-1 bg-[#0d0d0d] border border-white/10 focus:border-white/30 rounded-xl px-4 py-2.5 text-sm outline-none min-w-0 transition-all placeholder:text-zinc-600" />
                       <button data-testid="chat-send" onClick={() => sendChat(chatText)}
                         className="bg-white text-black px-4 rounded-xl hover:bg-zinc-200 transition-all flex items-center justify-center font-bold text-sm gap-1.5">
                         <PaperPlaneRight size={15} weight="fill" /> Enviar
@@ -688,7 +718,7 @@ export default function Dashboard() {
           </div>
         )}
         <button data-testid="floating-chat" onClick={() => { if (!selected && helpdeskUnits[0]) setSelected(helpdeskUnits[0].id); setChatOpen((v) => !v); }}
-          className={`flex items-center gap-2.5 rounded-full px-5 py-3 font-bold transition-all shadow-2xl ${chatOpen ? "bg-zinc-800 text-white border border-white/10" : "bg-white text-black hover:bg-zinc-200"}`}>
+          className={`flex items-center gap-2.5 rounded-full px-5 py-3 font-bold transition-all duration-300 shadow-2xl hover-lift ${chatOpen ? "bg-zinc-800/90 text-white border border-white/10 backdrop-blur-xl" : "bg-white text-black hover:bg-zinc-200"}`}>
           <ChatCircleDots size={22} weight={chatOpen ? "regular" : "fill"} /> Chat seguro
           {!chatOpen && alerts.length > 0 && (
             <span className="rounded-full bg-[#FF2A2A] text-white text-[10px] font-bold px-1.5 py-0.5 min-w-[20px] text-center animate-pulse">{alerts.length}</span>
@@ -698,13 +728,13 @@ export default function Dashboard() {
 
       {userModal && (
         <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
-          <div className="card-tactical w-full max-w-2xl p-5 rounded-xl fade-up" style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.5)" }}>
-            <div className="flex justify-between items-center mb-5">
+          <div className="card-glass-strong w-full max-w-2xl p-6 rounded-2xl fade-up" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
+            <div className="flex justify-between items-center mb-6">
               <h2 className="font-heading font-bold text-lg flex items-center gap-2">
                 {userModal === "create" ? <UserPlus size={18} weight="fill" /> : <PencilSimple size={18} weight="fill" />}
                 {userModal === "create" ? "Crear conductor" : "Modificar datos del conductor"}
               </h2>
-              <button onClick={() => setUserModal(null)} className="w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
+              <button onClick={() => setUserModal(null)} className="w-8 h-8 rounded-lg border border-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
                 <X size={16} />
               </button>
             </div>
@@ -716,19 +746,19 @@ export default function Dashboard() {
                     type={key === 'password' ? 'password' : 'text'}
                     value={unitForm[key]}
                     onChange={(e) => setUnitForm((f) => ({ ...f, [key]: e.target.value }))}
-                    className="mt-1.5 w-full bg-[#0d0d0d] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-white/40 transition-all font-tel"
+                    className="mt-1.5 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel"
                   />
                 </label>
               ))}
               <label className="text-xs text-zinc-400 font-medium">
                 Color asignado
                 <input type="color" value={unitForm.color} onChange={(e) => setUnitForm((f) => ({ ...f, color: e.target.value }))}
-                  className="mt-1.5 w-full h-10 bg-[#0d0d0d] border border-white/10 rounded-lg cursor-pointer" />
+                  className="mt-1.5 w-full h-10 bg-[#0d0d0d] border border-white/10 rounded-xl cursor-pointer" />
               </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setUserModal(null)} className="px-4 py-2.5 rounded-lg border border-white/10 text-zinc-300 hover:border-white/30 transition-all text-sm">Cancelar</button>
-              <button onClick={saveUser} className="px-5 py-2.5 rounded-lg bg-white text-black font-bold flex items-center gap-2 hover:bg-zinc-200 transition-all text-sm">
+              <button onClick={() => setUserModal(null)} className="px-4 py-2.5 rounded-xl border border-white/10 text-zinc-300 hover:border-white/30 transition-all text-sm">Cancelar</button>
+              <button onClick={saveUser} className="px-5 py-2.5 rounded-xl bg-white text-black font-bold flex items-center gap-2 hover:bg-zinc-200 transition-all text-sm">
                 <FloppyDisk size={16} weight="fill" /> Guardar
               </button>
             </div>
@@ -738,32 +768,32 @@ export default function Dashboard() {
 
       {routeModal && (
         <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
-          <div className="card-tactical w-full max-w-4xl p-5 rounded-xl fade-up" style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.5)" }}>
+          <div className="card-glass-strong w-full max-w-4xl p-6 rounded-2xl fade-up" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
             <div className="flex justify-between items-center mb-3">
               <h2 className="font-heading font-bold text-lg flex items-center gap-2">
                 <NavigationArrow size={18} weight="fill" />
                 Asignar ruta: {units[routeModal]?.name}
               </h2>
-              <button onClick={() => setRouteModal(null)} className="w-8 h-8 rounded-lg border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
+              <button onClick={() => setRouteModal(null)} className="w-8 h-8 rounded-lg border border-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
                 <X size={16} />
               </button>
             </div>
             <p className="text-xs text-zinc-500 mb-3 leading-relaxed">
               Haz click en el mapa para seleccionar origen y destino. Al guardar, el servidor calcula la ruta real por calles y la comparte con la app móvil y la web en tiempo real.
             </p>
-            <div className="h-[420px] rounded-xl overflow-hidden border border-white/10">
+            <div className="h-[420px] rounded-xl overflow-hidden border border-white/[0.06]">
               <RoutePickerMap points={routePoints} color={units[routeModal]?.color || '#00E676'} onChange={setRoutePoints} />
             </div>
             <div className="flex flex-wrap items-center gap-3 mt-3">
               <label className="text-xs text-zinc-400 font-medium flex items-center gap-2">
                 Tolerancia
                 <input type="number" min="50" value={routeTolerance} onChange={(e) => setRouteTolerance(e.target.value)}
-                  className="w-28 bg-[#0d0d0d] border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-tel focus:border-white/40 transition-all" />
+                  className="w-28 bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2 text-white text-sm font-tel focus:border-white/30 transition-all" />
                 m
               </label>
               <div className="flex gap-2 ml-auto">
-                <button onClick={() => setRoutePoints([])} className="px-3 py-2 rounded-lg border border-white/10 text-zinc-300 hover:border-white/30 transition-all text-sm">Limpiar</button>
-                <button onClick={saveRoute} className="px-4 py-2 rounded-lg bg-white text-black font-bold flex items-center gap-2 hover:bg-zinc-200 transition-all text-sm">
+                <button onClick={() => setRoutePoints([])} className="px-3 py-2 rounded-xl border border-white/10 text-zinc-300 hover:border-white/30 transition-all text-sm">Limpiar</button>
+                <button onClick={saveRoute} className="px-4 py-2 rounded-xl bg-white text-black font-bold flex items-center gap-2 hover:bg-zinc-200 transition-all text-sm">
                   <FloppyDisk size={16} weight="fill" /> Guardar ruta
                 </button>
               </div>
@@ -772,7 +802,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {showTokenManager && <TokenManager onClose={() => setShowTokenManager(false)} />}
+      {showTokenManager && <TokenManager onClose={() => setShowTokenManager(false)} userRole={user?.role} />}
     </div>
   );
 }

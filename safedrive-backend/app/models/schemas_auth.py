@@ -66,6 +66,14 @@ class DriverTokenCreateIn(BaseModel):
     driver_ids: Optional[list[str]] = None
     max_uses: Optional[int] = None
 
+class SuperAdminUpdateUserIn(BaseModel):
+    """SuperAdmin updating any user (requires company site_token for confirmation)."""
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    site_token: str
+
+
 class UserResponse(BaseModel):
     """User response (safe public info)."""
     id: str

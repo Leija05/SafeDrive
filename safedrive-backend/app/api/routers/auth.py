@@ -14,6 +14,7 @@ from app.models.schemas_auth import (
     SiteTokenVerifyIn, SiteTokenCreateIn,
     DriverTokenVerifyIn, DriverTokenCreateIn,
     CompanyCreateIn, CompanyUpdateIn,
+    SuperAdminUpdateUserIn,
 )
 from app.models.schemas_telemetry import Telemetry
 from app.services.geo_helpers import interp_corridor, CORRIDOR, CORRIDOR_TOLERANCE_M
@@ -153,6 +154,60 @@ async def update_company(company_id: str, body: CompanyUpdateIn, user: dict = De
         await db.companies.update_one({"id": company_id}, {"$set": upd})
 
     return await db.companies.find_one({"id": company_id}, {"_id": 0})
+
+
+@router.patch("/users/{user_id}")
+async def superadmin_update_user(user_id: str, body: SuperAdminUpdateUserIn, user: dict = Depends(require_superadmin)):
+    """SuperAdmin updates any user's name/email/password. Requires the company's site_token to confirm."""
+    db = get_db()
+
+    target = await db.users.find_one({"id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    company_id = target.get("company_id")
+
+    # Verify site_token belongs to the user's company and is active
+    if company_id:
+        site_tok = await db.site_tokens.find_one({
+            "token": body.site_token.strip(),
+            "company_id": company_id,
+            "role": "monitorista",
+            "active": True,
+        })
+        if not site_tok:
+            raise HTTPException(status_code=403, detail="El token de acceso no coincide con la empresa del usuario o esta desactivado")
+        if _is_expired(site_tok):
+            raise HTTPException(status_code=403, detail="La suscripcion de la empresa esta vencida")
+    else:
+        # user has no company_id (e.g. a different superadmin) — just verify token exists as any active monitorista token
+        site_tok = await db.site_tokens.find_one({
+            "token": body.site_token.strip(),
+            "role": "monitorista",
+            "active": True,
+        })
+        if not site_tok:
+            raise HTTPException(status_code=403, detail="Token de acceso invalido")
+
+    upd = {}
+    if body.name is not None:
+        upd["name"] = body.name.strip()
+    if body.email is not None:
+        upd["email"] = body.email.lower().strip()
+    if body.password is not None:
+        upd["password_hash"] = hash_password(body.password)
+
+    if not upd:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+
+    await db.users.update_one({"id": user_id}, {"$set": upd})
+
+    return {
+        "id": user_id,
+        "email": upd.get("email", target["email"]),
+        "name": upd.get("name", target["name"]),
+        "updated_fields": list(upd.keys()),
+    }
 
 
 # ── Register ──────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import {
   ShieldCheck, Buildings, User, Truck, Key, SignOut, CaretDown, CaretUp,
   Plus, ChartBar, Clock, CheckCircle, XCircle, Eye, EyeSlash,
   Envelope, Lock, Phone, MapPin, IdentificationBadge, UsersThree,
-  WarningCircle, CurrencyCircleDollar, Gear, ArrowLeft,
+  WarningCircle, CurrencyCircleDollar, Gear, ArrowLeft, PencilSimple,
 } from "@phosphor-icons/react";
 
 export default function AdminPanel() {
@@ -195,6 +195,7 @@ function StatCard({ icon: Icon, label, value, gradient, delay }) {
 /* ── Company Card ── */
 function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) {
   const [visible, setVisible] = useState(false);
+  const [editUser, setEditUser] = useState(null);
   useEffect(() => { setTimeout(() => setVisible(true), 100 + index * 80); }, [index]);
 
   const handleToggleActive = async () => {
@@ -297,8 +298,8 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
                 </div>
               )}
 
-              <div className="grid lg:grid-cols-2 gap-6">
-                {/* Users section */}
+              <div className="grid lg:grid-cols-3 gap-6">
+                {/* Monitoristas section */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-sm font-bold text-zinc-300 flex items-center gap-2">
@@ -308,10 +309,28 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
                   </div>
                   <div className="space-y-1.5">
                     {users.filter((u) => u.role === "monitorista").map((u) => (
-                      <UserRow key={u.id} user={u} badge="monitorista" badgeColor="violet" />
+                      <UserRow key={u.id} user={u} badge="monitorista" badgeColor="violet" onEdit={() => setEditUser(u)} />
                     ))}
                     {users.filter((u) => u.role === "monitorista").length === 0 && (
                       <EmptyRow text="Sin monitoristas" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Conductores section */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-bold text-zinc-300 flex items-center gap-2">
+                      <User size={16} className="text-blue-400" />
+                      Conductores ({users.filter((u) => u.role === "conductor" || u.role === "driver").length})
+                    </h4>
+                  </div>
+                  <div className="space-y-1.5">
+                    {users.filter((u) => u.role === "conductor" || u.role === "driver").map((u) => (
+                      <UserRow key={u.id} user={u} badge={u.role} badgeColor="blue" onEdit={() => setEditUser(u)} />
+                    ))}
+                    {users.filter((u) => u.role === "conductor" || u.role === "driver").length === 0 && (
+                      <EmptyRow text="Sin conductores" />
                     )}
                   </div>
                 </div>
@@ -354,6 +373,15 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
           </div>
         )}
       </div>
+
+      {editUser && (
+        <EditUserModal
+          user={editUser}
+          companyName={company.name}
+          onClose={() => setEditUser(null)}
+          onSaved={() => { setEditUser(null); onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -370,22 +398,31 @@ function MetaItem({ icon: Icon, label, value }) {
   );
 }
 
-function UserRow({ user, badge, badgeColor }) {
-  const colorMap = { violet: "bg-violet-500/15 text-violet-400 border-violet-500/20", emerald: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" };
+function UserRow({ user, badge, badgeColor, onEdit }) {
+  const colorMap = {
+    violet: "bg-violet-500/15 text-violet-400 border-violet-500/20",
+    emerald: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
+    blue: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  };
   return (
     <div className="flex items-center justify-between bg-zinc-800/30 hover:bg-zinc-800/50 rounded-xl px-3.5 py-2.5 transition-colors group border border-zinc-800/40">
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center text-[11px] font-bold text-zinc-400 shrink-0">
-          {user.name.charAt(0).toUpperCase()}
+          {user.name?.charAt(0)?.toUpperCase() || "?"}
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium truncate">{user.name}</p>
           <p className="text-xs text-zinc-500 truncate">{user.email}</p>
         </div>
       </div>
-      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border shrink-0 ${colorMap[badgeColor] || colorMap.violet}`}>
-        {badge}
-      </span>
+      <div className="flex items-center gap-2">
+        <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border shrink-0 ${colorMap[badgeColor] || colorMap.violet}`}>
+          {badge}
+        </span>
+        <button onClick={onEdit} className="w-7 h-7 rounded-lg bg-zinc-700/30 hover:bg-amber-500/20 hover:text-amber-400 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 border border-zinc-700/40 hover:border-amber-500/30 text-zinc-500">
+          <PencilSimple size={13} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -430,6 +467,99 @@ function EmptyRow({ text }) {
     </div>
   );
 }
+
+/* ── Edit User Modal ── */
+function EditUserModal({ user, companyName, onClose, onSaved }) {
+  const [form, setForm] = useState({ name: user.name || "", email: user.email || "", password: "" });
+  const [siteToken, setSiteToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!siteToken.trim()) {
+      toast.error("Ingresa el token de acceso de la empresa para confirmar");
+      return;
+    }
+    const payload = {};
+    if (form.name !== user.name) payload.name = form.name;
+    if (form.email !== user.email) payload.email = form.email;
+    if (form.password) payload.password = form.password;
+    payload.site_token = siteToken.trim();
+
+    if (Object.keys(payload).length <= 1) {
+      toast.error("No hay cambios para guardar");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await api.patch(`/auth/users/${user.id}`, payload);
+      toast.success("Usuario actualizado correctamente");
+      onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al actualizar usuario");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl shadow-black/50 animate-fadeIn">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <User size={20} weight="fill" className="text-black" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Editar usuario</h2>
+              <p className="text-xs text-zinc-500">{companyName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 flex items-center justify-center transition-colors border border-zinc-700/50">
+            <XCircle size={16} className="text-zinc-400" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <InputField icon={IdentificationBadge} label="Nombre" name="name" value={form.name} onChange={handleChange} placeholder="Nombre completo" />
+          <InputField icon={Envelope} label="Correo electrónico" name="email" type="email" value={form.email} onChange={handleChange} placeholder="correo@empresa.com" />
+          <div className="relative">
+            <InputField icon={Lock} label="Nueva contraseña (dejar vacío para no cambiar)" name="password" type={showPw ? "text" : "password"} value={form.password} onChange={handleChange} placeholder="••••••••" />
+            <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 bottom-2.5 text-zinc-500 hover:text-zinc-300 transition-colors">
+              {showPw ? <EyeSlash size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+
+          <div className="border-t border-zinc-800/40 pt-4">
+            <label className="text-xs text-zinc-400 mb-1.5 block font-medium flex items-center gap-1.5">
+              <Key size={13} className="text-amber-400" />
+              Token de acceso de la empresa <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={siteToken}
+              onChange={(e) => setSiteToken(e.target.value)}
+              placeholder="Pega el token de suscripción de la empresa"
+              className="w-full bg-zinc-800/80 border border-zinc-700/60 focus:border-amber-500/50 rounded-xl px-3 py-2.5 text-sm outline-none transition-all text-white placeholder-zinc-600"
+            />
+            <p className="text-[11px] text-zinc-600 mt-1.5">Necesitas el token de suscripción de la empresa para confirmar los cambios.</p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/40">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm transition-colors border border-zinc-700/50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={busy} className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold rounded-xl text-sm transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50">
+              {busy ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 
 /* ── Create Company Modal ── */
 function CreateCompanyModal({ onClose }) {

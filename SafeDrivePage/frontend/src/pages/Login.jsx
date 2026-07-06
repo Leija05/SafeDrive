@@ -2,12 +2,107 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
-import { ShieldCheck, ArrowLeft, Eye, EyeSlash, Lock, Envelope, SignIn } from "@phosphor-icons/react";
+import { ShieldCheck, ArrowLeft, Eye, EyeSlash, Lock, Envelope, SignIn, Key, CheckCircle } from "@phosphor-icons/react";
 
-export default function Login() {
+function TokenGate({ onVerified }) {
+  const { verifySiteToken } = useAuth();
+  const [tokenInput, setTokenInput] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submitToken = async (e) => {
+    e.preventDefault();
+    setBusy(true); setError("");
+    try {
+      await verifySiteToken(tokenInput.trim());
+      onVerified();
+    } catch (err) {
+      setError(formatApiError(err.response?.data?.detail) || err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center px-4 relative overflow-hidden">
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "44px 44px" }} />
+      <div className="absolute top-0 left-0 right-0 h-64 bg-gradient-to-b from-[#FF2A2A]/5 to-transparent pointer-events-none" />
+      <Link to="/" className="absolute top-6 left-6 text-zinc-500 hover:text-white flex items-center gap-2 text-sm transition-colors group">
+        <div className="w-7 h-7 rounded-lg border border-white/10 flex items-center justify-center group-hover:border-white/30 transition-all">
+          <ArrowLeft size={14} />
+        </div>
+      </Link>
+      <div className="w-full max-w-sm relative fade-up">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-lg shadow-white/5">
+            <ShieldCheck size={24} weight="fill" className="text-black" />
+          </div>
+          <div>
+            <span className="font-heading font-black text-xl tracking-tight text-white block">SafeDrive<span className="text-[#FF2A2A]">GPS</span></span>
+            <span className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-tel">Acceso Monitorista</span>
+          </div>
+        </div>
+
+        <div className="card-tactical p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 bg-[#FF2A2A]/10 rounded-lg flex items-center justify-center">
+              <Key size={18} weight="bold" className="text-[#FF2A2A]" />
+            </div>
+            <div>
+              <h1 className="font-heading font-black text-lg tracking-tight">Token de Acceso</h1>
+              <p className="text-zinc-500 text-xs">Ingresa el token proporcionado por el proveedor.</p>
+            </div>
+          </div>
+
+          <form onSubmit={submitToken} className="space-y-4">
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-[0.15em] text-zinc-500 block mb-1.5">Token &uacute;nico</label>
+              <input
+                type="text"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="XXXX-XXXX-XXXX-XXXX"
+                required
+                className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/40 rounded-lg px-3 py-2.5 text-white text-sm outline-none transition-colors font-mono text-center tracking-widest"
+              />
+            </div>
+            {error && (
+              <div className="text-sm border border-[#FF2A2A]/30 bg-[#FF2A2A]/10 rounded-lg px-3 py-2.5 flex items-center gap-2">
+                <span className="text-[#FF2A2A] text-xs">{error}</span>
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={busy || !tokenInput.trim()}
+              className="w-full bg-white text-black font-bold py-3 rounded-lg hover:bg-zinc-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {busy ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  Verificando…
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <CheckCircle size={18} weight="bold" />
+                  Validar acceso
+                </span>
+              )}
+            </button>
+          </form>
+        </div>
+
+        <p className="text-zinc-700 text-xs mt-6 font-tel text-center">
+          Este token se solicita una &uacute;nica vez por dispositivo.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function LoginForm() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("leijahector5@gmail.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -61,6 +156,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  placeholder="correo@ejemplo.com"
                   className="w-full bg-[#0d0d0d] border border-white/10 focus:border-white/40 rounded-lg pl-9 pr-3 py-2.5 text-white text-sm outline-none transition-colors font-tel"
                 />
               </div>
@@ -118,4 +214,15 @@ export default function Login() {
       </div>
     </div>
   );
+}
+
+export default function Login() {
+  const { siteToken } = useAuth();
+  const [tokenReady, setTokenReady] = useState(!!siteToken);
+
+  if (!tokenReady) {
+    return <TokenGate onVerified={() => setTokenReady(true)} />;
+  }
+
+  return <LoginForm />;
 }

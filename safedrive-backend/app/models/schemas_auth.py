@@ -6,6 +6,7 @@ class LoginIn(BaseModel):
     """Login request."""
     email: EmailStr
     password: str
+    site_token: Optional[str] = None
 
 class RegisterIn(BaseModel):
     """User registration request."""
@@ -14,7 +15,7 @@ class RegisterIn(BaseModel):
     name: str
     phone: Optional[str] = None
     plate: Optional[str] = None
-    role: Optional[str] = "driver"  # 'driver' or 'operator'
+    role: Optional[str] = "driver"
 
 class AdminCreateUserIn(BaseModel):
     """Admin creating a new user."""
@@ -34,6 +35,15 @@ class AdminUpdateUserIn(BaseModel):
     role: Optional[str] = None
     phone: Optional[str] = None
     plate: Optional[str] = None
+
+class SiteTokenVerifyIn(BaseModel):
+    """Site token verification request."""
+    token: str
+
+class SiteTokenCreateIn(BaseModel):
+    """Create a new site token (admin only)."""
+    name: str
+    max_uses: Optional[int] = None
 
 class UserResponse(BaseModel):
     """User response (safe public info)."""

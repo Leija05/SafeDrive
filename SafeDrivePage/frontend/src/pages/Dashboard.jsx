@@ -25,7 +25,7 @@ const ALERT_ICON = {
 
 function routeConfigFor(unit, globalRoute) {
   if (unit?.route) return unit.route;
-  if (unit?.assigned_route?.length) {
+  if (Array.isArray(unit?.assigned_route) && Array.isArray(unit.assigned_route[0])) {
     return {
       origin: unit.assigned_route[0],
       destination: unit.assigned_route[unit.assigned_route.length - 1],

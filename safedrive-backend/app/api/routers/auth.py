@@ -5,13 +5,15 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from app.core.database import get_db
 from app.core.security import (
     hash_password, verify_password, create_access_token,
-    get_current_user, require_driver, require_admin
+    get_current_user, require_admin, require_superadmin, require_conductor,
+    get_company_id
 )
 from app.core.ratelimiter import auth_limiter
 from app.models.schemas_auth import (
     LoginIn, RegisterIn, UserResponse,
     SiteTokenVerifyIn, SiteTokenCreateIn,
-    DriverTokenVerifyIn, DriverTokenCreateIn
+    DriverTokenVerifyIn, DriverTokenCreateIn,
+    CompanyCreateIn, CompanyUpdateIn,
 )
 from app.models.schemas_telemetry import Telemetry
 from app.services.geo_helpers import interp_corridor, CORRIDOR, CORRIDOR_TOLERANCE_M
@@ -50,46 +52,163 @@ def _is_expired(tok: dict) -> bool:
     except (ValueError, TypeError):
         return False
 
+
+# ── SuperAdmin: Company CRUD ──────────────────────────────────────────────────
+
+@router.post("/companies")
+async def create_company(body: CompanyCreateIn, user: dict = Depends(require_superadmin)):
+    """Create a new company + its first monitorista user (superadmin only)."""
+    db = get_db()
+
+    company_id = f"comp_{uuid.uuid4().hex[:12]}"
+
+    company = {
+        "id": company_id,
+        "name": body.name.strip(),
+        "rfc": body.rfc,
+        "phone": body.phone,
+        "email": body.email,
+        "address": body.address,
+        "active": True,
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.companies.insert_one(company)
+
+    monitor_email = body.monitor_email.lower()
+    if await db.users.find_one({"email": monitor_email}):
+        await db.companies.delete_one({"id": company_id})
+        raise HTTPException(status_code=400, detail="El correo del monitorista ya esta registrado")
+
+    uid = str(uuid.uuid4())
+    monitor_user = {
+        "id": uid,
+        "email": monitor_email,
+        "password_hash": hash_password(body.monitor_password),
+        "name": body.monitor_name.strip(),
+        "role": "monitorista",
+        "company_id": company_id,
+        "phone": None,
+        "token_version": 1,
+        "current_session_id": str(uuid.uuid4()),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(monitor_user)
+
+    return {
+        "company": {k: v for k, v in company.items() if k != "_id"},
+        "monitor": {
+            "id": uid,
+            "email": monitor_email,
+            "name": body.monitor_name,
+            "role": "monitorista",
+        },
+    }
+
+
+@router.get("/companies")
+async def list_companies(user: dict = Depends(require_superadmin)):
+    """List all companies (superadmin only)."""
+    db = get_db()
+    companies = await db.companies.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    for c in companies:
+        c["user_count"] = await db.users.count_documents({"company_id": c["id"]})
+        c["unit_count"] = await db.units.count_documents({"company_id": c["id"]})
+        active_token = await db.site_tokens.find_one(
+            {"company_id": c["id"], "role": "monitorista", "active": True},
+            {"_id": 0, "plan_name": 1, "expires_at": 1, "cycle": 1}
+        )
+        c["subscription"] = active_token
+    return companies
+
+
+@router.get("/companies/{company_id}")
+async def get_company(company_id: str, user: dict = Depends(require_superadmin)):
+    """Get company details (superadmin only)."""
+    db = get_db()
+    company = await db.companies.find_one({"id": company_id}, {"_id": 0})
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+    company["users"] = await db.users.find(
+        {"company_id": company_id},
+        {"_id": 0, "password_hash": 0, "current_session_id": 0}
+    ).to_list(500)
+    company["units"] = await db.units.find(
+        {"company_id": company_id},
+        {"_id": 0}
+    ).to_list(500)
+    return company
+
+
+@router.patch("/companies/{company_id}")
+async def update_company(company_id: str, body: CompanyUpdateIn, user: dict = Depends(require_superadmin)):
+    """Update company (superadmin only)."""
+    db = get_db()
+    company = await db.companies.find_one({"id": company_id})
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada")
+
+    upd = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if upd:
+        await db.companies.update_one({"id": company_id}, {"$set": upd})
+
+    return await db.companies.find_one({"id": company_id}, {"_id": 0})
+
+
+# ── Register ──────────────────────────────────────────────────────────────────
+
 @router.post("/register")
 async def register(body: RegisterIn, request: Request, user: dict = Depends(require_admin)):
-    """Register new user (driver or operator). Only admin users may create accounts."""
+    """Register new user (conductor or monitorista). Only admin-level users may create accounts."""
     await auth_limiter.check(request)
     db = get_db()
     email = body.email.lower()
-    
+
     if await db.users.find_one({"email": email}):
-        raise HTTPException(status_code=400, detail="El correo ya está registrado")
-    
+        raise HTTPException(status_code=400, detail="El correo ya esta registrado")
+
+    role = body.role or "conductor"
+    if role not in ("conductor", "driver", "monitorista", "admin", "operator"):
+        raise HTTPException(status_code=400, detail="Rol invalido")
+
+    # Only superadmin can create monitoristas
+    if role in ("monitorista", "admin") and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo SuperAdmin puede crear monitoristas")
+
+    # Inherit company_id from creator
+    company_id = get_company_id(user)
+
     uid = str(uuid.uuid4())
     sid = str(uuid.uuid4())
-    
+
     doc = {
         "id": uid,
         "email": email,
         "password_hash": hash_password(body.password),
         "name": body.name,
-        "role": body.role or "driver",
+        "role": role,
+        "company_id": company_id,
         "phone": body.phone,
         "token_version": 1,
         "current_session_id": sid,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    
+
     await db.users.insert_one(doc)
-    
-    user = UserResponse(
+
+    resp_user = UserResponse(
         id=uid, email=email, name=body.name,
-        role=body.role or "driver", phone=body.phone
+        role=role, phone=body.phone, company_id=company_id
     )
-    
-    # Auto-create unit for drivers
+
     unit = None
-    if body.role == "driver" or not body.role:
+    if role in ("conductor", "driver"):
         count = await db.units.count_documents({})
         lat, lng, heading = interp_corridor(0.0)
         unit = {
             "id": str(uuid.uuid4()),
             "driver_id": uid,
+            "company_id": company_id,
             "name": f"NL-{count + 1:02d}",
             "driver_name": body.name,
             "plate": body.plate or f"NL-{uuid.uuid4().hex[:6].upper()}",
@@ -117,50 +236,62 @@ async def register(body: RegisterIn, request: Request, user: dict = Depends(requ
         }
         await db.units.insert_one({**unit})
         await manager.broadcast({"type": "unit_update", "unit": unit})
-    
-    token = create_access_token(uid, email, role=body.role or "driver", ver=1, sid=sid)
-    
+
+    token = create_access_token(uid, email, role=role, ver=1, sid=sid)
+
     return {
         "access_token": token,
-        "user": user,
+        "user": resp_user,
         "unit": unit,
     }
 
-# --- Site Token Endpoints ---
+
+# ── Site Token (Monitorista) Endpoints ────────────────────────────────────────
 
 @router.post("/verify-site-token")
 async def verify_site_token(body: SiteTokenVerifyIn, request: Request):
-    """Verify a site access token for monitoristas. Returns ok if token is valid and active."""
+    """Verify a site access token for monitoristas, or a SuperAdmin device key."""
     await auth_limiter.check(request)
     db = get_db()
-    tok = await db.site_tokens.find_one({"token": body.token.strip(), "role": "monitorista", "active": True})
-    if not tok:
-        raise HTTPException(status_code=403, detail="Token de acceso invalido o desactivado")
 
-    if _is_expired(tok):
-        raise HTTPException(status_code=403, detail="Tu suscripcion ha expirado. Contacta a tu administrador para renovar.")
+    token_raw = body.token.strip()
 
-    if tok.get("max_uses") is not None:
-        used = tok.get("use_count", 0)
-        if used >= tok["max_uses"]:
-            raise HTTPException(status_code=403, detail="Token de acceso ha alcanzado su maximo de usos")
+    # Try monitorista site_token first
+    tok = await db.site_tokens.find_one({"token": token_raw, "role": "monitorista", "active": True})
+    if tok:
+        if _is_expired(tok):
+            raise HTTPException(status_code=403, detail="Tu suscripcion ha expirado. Contacta a tu administrador para renovar.")
+        if tok.get("max_uses") is not None:
+            used = tok.get("use_count", 0)
+            if used >= tok["max_uses"]:
+                raise HTTPException(status_code=403, detail="Token de acceso ha alcanzado su maximo de usos")
+        await db.site_tokens.update_one(
+            {"_id": tok["_id"]},
+            {"$inc": {"use_count": 1}, "$set": {"last_used_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        return {"ok": True, "name": tok.get("name", ""), "role": "monitorista", "expires_at": tok.get("expires_at")}
 
-    await db.site_tokens.update_one(
-        {"_id": tok["_id"]},
-        {"$inc": {"use_count": 1}, "$set": {"last_used_at": datetime.now(timezone.utc).isoformat()}}
-    )
+    # Try SuperAdmin device key
+    key_doc = await db.superadmin_keys.find_one({"active": True})
+    if key_doc and verify_password(token_raw, key_doc["key_hash"]):
+        return {"ok": True, "name": "SuperAdmin", "role": "superadmin", "expires_at": None}
 
-    return {"ok": True, "name": tok.get("name", ""), "expires_at": tok.get("expires_at")}
+    raise HTTPException(status_code=403, detail="Token de acceso invalido o desactivado")
+
 
 @router.post("/site-tokens")
 async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(require_admin)):
-    """Create a new site access token (admin only). For monitorista tokens, a plan + cycle is required."""
+    """Create a new site access token (admin only). Inherits company_id from creator."""
     db = get_db()
     raw = secrets.token_hex(24)
+
+    company_id = get_company_id(user)
+
     doc = {
         "token": raw,
         "name": body.name.strip(),
         "role": body.role or "monitorista",
+        "company_id": company_id,
         "active": True,
         "use_count": 0,
         "max_uses": body.max_uses,
@@ -172,7 +303,6 @@ async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(requir
         "last_used_at": None,
     }
 
-    # Plan-based token for monitoristas
     if body.role == "monitorista":
         plan = PLANS_CATALOG.get(body.plan_id) if body.plan_id else None
         if not plan and (body.plan_id or body.cycle):
@@ -190,6 +320,7 @@ async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(requir
         "token": raw,
         "name": doc["name"],
         "role": doc["role"],
+        "company_id": doc.get("company_id"),
         "plan_id": doc.get("plan_id"),
         "plan_name": doc.get("plan_name"),
         "max_drivers": doc.get("max_drivers"),
@@ -197,14 +328,22 @@ async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(requir
         "expires_at": doc.get("expires_at"),
     }
 
+
 @router.get("/site-tokens")
 async def list_site_tokens(user: dict = Depends(require_admin)):
-    """List all site tokens (monitorista + conductor)."""
+    """List all site tokens, scoped to user's company for monitoristas."""
     db = get_db()
+    company_id = get_company_id(user)
+
+    query = {}
+    if company_id:
+        query["company_id"] = company_id
+
     tokens = await db.site_tokens.find(
-        {}, {"_id": 0, "token": 1, "name": 1, "role": 1, "active": 1, "use_count": 1, "max_uses": 1,
-             "unit_id": 1, "driver_id": 1, "device_id": 1, "created_at": 1, "last_used_at": 1,
-             "plan_id": 1, "plan_name": 1, "max_drivers": 1, "drivers_used": 1, "cycle": 1, "expires_at": 1}
+        query, {"_id": 0, "token": 1, "name": 1, "role": 1, "active": 1, "use_count": 1, "max_uses": 1,
+                "unit_id": 1, "driver_id": 1, "device_id": 1, "created_at": 1, "last_used_at": 1,
+                "plan_id": 1, "plan_name": 1, "max_drivers": 1, "drivers_used": 1, "cycle": 1, "expires_at": 1,
+                "company_id": 1}
     ).sort("created_at", -1).to_list(500)
 
     now = datetime.now(timezone.utc)
@@ -218,6 +357,7 @@ async def list_site_tokens(user: dict = Depends(require_admin)):
             t["expired"] = False
     return tokens
 
+
 @router.patch("/site-tokens/{tid}")
 async def toggle_site_token(tid: str, user: dict = Depends(require_admin)):
     """Toggle a site token active/inactive."""
@@ -225,6 +365,11 @@ async def toggle_site_token(tid: str, user: dict = Depends(require_admin)):
     tok = await db.site_tokens.find_one({"token": tid})
     if not tok:
         raise HTTPException(status_code=404, detail="Token no encontrado")
+
+    company_id = get_company_id(user)
+    if company_id and tok.get("company_id") != company_id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este token")
+
     new_active = not tok.get("active", True)
     await db.site_tokens.update_one({"token": tid}, {"$set": {"active": new_active}})
     return {"ok": True, "active": new_active}
@@ -237,6 +382,10 @@ async def renew_site_token(tid: str, user: dict = Depends(require_admin)):
     tok = await db.site_tokens.find_one({"token": tid, "role": "monitorista"})
     if not tok:
         raise HTTPException(status_code=404, detail="Token monitorista no encontrado")
+
+    company_id = get_company_id(user)
+    if company_id and tok.get("company_id") != company_id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este token")
 
     cycle = tok.get("cycle", "Mensual")
     new_exp = _expires_in(cycle)
@@ -256,10 +405,15 @@ async def token_status(tid: str, user: dict = Depends(require_admin)):
     tok = await db.site_tokens.find_one(
         {"token": tid, "role": "monitorista"},
         {"_id": 0, "token": 1, "name": 1, "active": 1, "plan_id": 1, "plan_name": 1,
-         "max_drivers": 1, "drivers_used": 1, "cycle": 1, "expires_at": 1, "created_at": 1}
+         "max_drivers": 1, "drivers_used": 1, "cycle": 1, "expires_at": 1, "created_at": 1,
+         "company_id": 1}
     )
     if not tok:
         raise HTTPException(status_code=404, detail="Token monitorista no encontrado")
+
+    company_id = get_company_id(user)
+    if company_id and tok.get("company_id") != company_id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este token")
 
     now = datetime.now(timezone.utc)
     expired = False
@@ -276,15 +430,14 @@ async def token_status(tid: str, user: dict = Depends(require_admin)):
     }
 
 
-# --- Driver Token Endpoints ---
+# ── Driver / Conductor Token Endpoints ────────────────────────────────────────
 
 @router.post("/driver-tokens")
 async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(require_admin)):
-    """Generate driver activation tokens. Requires a parent monitorista token to enforce plan limits."""
+    """Generate conductor activation tokens. Requires a parent monitorista token to enforce plan limits."""
     db = get_db()
     tokens = []
 
-    # Parent monitorista token must be provided
     parent_tok = None
     if body.parent_token:
         parent_tok = await db.site_tokens.find_one({"token": body.parent_token.strip(), "role": "monitorista"})
@@ -306,12 +459,15 @@ async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(r
                        f"Solo puedes crear {max(0, remaining)} mas."
             )
 
+    company_id = parent_tok.get("company_id") if parent_tok else get_company_id(user)
+
     for i in range(body.count):
         raw = secrets.token_hex(16)
         doc = {
             "token": raw,
             "name": f"Conductor-{uuid.uuid4().hex[:4].upper()}",
             "role": "conductor",
+            "company_id": company_id,
             "active": True,
             "use_count": 0,
             "max_uses": body.max_uses or 1,
@@ -325,14 +481,20 @@ async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(r
         }
 
         if body.unit_ids and i < len(body.unit_ids):
-            unit = await db.units.find_one({"id": body.unit_ids[i]}, {"_id": 0})
+            unit_query = {"id": body.unit_ids[i]}
+            if company_id:
+                unit_query["company_id"] = company_id
+            unit = await db.units.find_one(unit_query, {"_id": 0})
             if unit:
                 doc["unit_id"] = unit["id"]
                 doc["driver_id"] = unit.get("driver_id")
                 doc["name"] = f"{unit.get('name', 'Unidad')} · {unit.get('driver_name', 'Conductor')}"
 
         if not doc["driver_id"] and body.driver_ids and i < len(body.driver_ids):
-            driver = await db.users.find_one({"id": body.driver_ids[i], "role": "driver"}, {"_id": 0})
+            driver_query = {"id": body.driver_ids[i], "role": {"$in": ["conductor", "driver"]}}
+            if company_id:
+                driver_query["company_id"] = company_id
+            driver = await db.users.find_one(driver_query, {"_id": 0})
             if driver:
                 doc["driver_id"] = driver["id"]
                 doc["name"] = driver.get("name", "Conductor")
@@ -340,7 +502,6 @@ async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(r
         await db.site_tokens.insert_one(doc)
         tokens.append({"token": raw, "name": doc["name"], "unit_id": doc["unit_id"], "driver_id": doc["driver_id"]})
 
-    # Update parent token driver count
     if parent_tok:
         await db.site_tokens.update_one(
             {"token": body.parent_token.strip()},
@@ -352,10 +513,15 @@ async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(r
 
 @router.get("/driver-tokens")
 async def list_driver_tokens(user: dict = Depends(require_admin)):
-    """List all driver activation tokens."""
+    """List all conductor tokens, scoped to user's company for monitoristas."""
     db = get_db()
+    company_id = get_company_id(user)
+    query = {"role": "conductor"}
+    if company_id:
+        query["company_id"] = company_id
+
     tokens = await db.site_tokens.find(
-        {"role": "conductor"},
+        query,
         {"_id": 0, "token": 1, "name": 1, "active": 1, "use_count": 1, "max_uses": 1,
          "unit_id": 1, "driver_id": 1, "device_id": 1, "created_at": 1, "last_used_at": 1}
     ).sort("created_at", -1).to_list(500)
@@ -364,7 +530,7 @@ async def list_driver_tokens(user: dict = Depends(require_admin)):
 
 @router.post("/verify-driver-token")
 async def verify_driver_token(body: DriverTokenVerifyIn, request: Request):
-    """Verify a driver activation token. Optionally locks to device."""
+    """Verify a conductor activation token. Optionally locks to device."""
     await auth_limiter.check(request)
     db = get_db()
 
@@ -372,7 +538,6 @@ async def verify_driver_token(body: DriverTokenVerifyIn, request: Request):
     if not tok:
         raise HTTPException(status_code=403, detail="Token de conductor invalido o desactivado")
 
-    # Check parent monitorista token validity
     parent_token = tok.get("parent_token")
     if parent_token:
         parent = await db.site_tokens.find_one({"token": parent_token, "active": True})
@@ -381,16 +546,18 @@ async def verify_driver_token(body: DriverTokenVerifyIn, request: Request):
         if _is_expired(parent):
             raise HTTPException(status_code=403, detail="La suscripcion ha expirado. Contacta a tu administrador.")
 
+        company = await db.companies.find_one({"id": parent.get("company_id")})
+        if company and not company.get("active", True):
+            raise HTTPException(status_code=403, detail="La empresa esta desactivada. Contacta a tu administrador.")
+
     if tok.get("max_uses") is not None:
         used = tok.get("use_count", 0)
         if used >= tok["max_uses"]:
             raise HTTPException(status_code=403, detail="Este token ya alcanzo su maximo de usos")
 
-    # Enforce one-device if already registered
     if tok.get("device_id") and body.device_id and tok["device_id"] != body.device_id:
         raise HTTPException(status_code=403, detail="Este token ya esta vinculado a otro dispositivo")
 
-    # Lock to device on first use
     upd = {"$inc": {"use_count": 1}, "$set": {"last_used_at": datetime.now(timezone.utc).isoformat()}}
     if body.device_id and not tok.get("device_id"):
         upd["$set"]["device_id"] = body.device_id
@@ -405,21 +572,39 @@ async def verify_driver_token(body: DriverTokenVerifyIn, request: Request):
     }
 
 
-# --- Login ---
+# ── Login ─────────────────────────────────────────────────────────────────────
 
 @router.post("/login")
 async def login(body: LoginIn, request: Request):
-    """Login user."""
+    """Login user. Blocks if subscription expired or company is inactive."""
     await auth_limiter.check(request)
     db = get_db()
     email = body.email.lower()
     user = await db.users.find_one({"email": email})
-    
-    if not user or not verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
 
-    # Site token check for admin/monitoring roles
-    if user.get("role") in ("admin", "operator", "dev"):
+    if not user or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Correo o contrasena incorrectos")
+
+    role = user.get("role")
+    company_id = user.get("company_id")
+
+    # SuperAdmin requires device-bound key (from site_token field, since frontend stores it there)
+    if role == "superadmin":
+        admin_key = body.admin_key or body.site_token
+        if not admin_key:
+            raise HTTPException(status_code=403, detail="Llave de administrador requerida para SuperAdmin")
+        key_doc = await db.superadmin_keys.find_one({"active": True})
+        if not key_doc:
+            raise HTTPException(status_code=403, detail="No hay llaves de SuperAdmin registradas. Ejecuta generate_superadmin_key.py")
+        if not verify_password(admin_key.strip(), key_doc["key_hash"]):
+            raise HTTPException(status_code=403, detail="Llave de administrador invalida")
+        await db.superadmin_keys.update_one(
+            {"_id": key_doc["_id"]},
+            {"$set": {"last_used_at": datetime.now(timezone.utc).isoformat(), "last_used_by": email}}
+        )
+
+    # Site token check for monitorista-level roles
+    if role in ("monitorista", "admin", "operator", "dev"):
         if not body.site_token:
             raise HTTPException(status_code=403, detail="Token de acceso requerido para monitoristas")
         site_tok = await db.site_tokens.find_one({"token": body.site_token.strip(), "role": "monitorista", "active": True})
@@ -428,15 +613,20 @@ async def login(body: LoginIn, request: Request):
         if _is_expired(site_tok):
             raise HTTPException(status_code=403, detail="Tu suscripcion ha expirado. Contacta a tu administrador para renovar.")
 
-    # Driver token check — required for driver role
-    if user.get("role") == "driver":
+        # Verify company is still active
+        if company_id:
+            company = await db.companies.find_one({"id": company_id})
+            if company and not company.get("active", True):
+                raise HTTPException(status_code=403, detail="Tu empresa esta desactivada. Contacta a tu administrador.")
+
+    # Conductor token check
+    if role in ("conductor", "driver"):
         if not body.driver_token:
             raise HTTPException(status_code=403, detail="Token de activacion requerido para conductores")
         drv_tok = await db.site_tokens.find_one({"token": body.driver_token.strip(), "role": "conductor", "active": True})
         if not drv_tok:
             raise HTTPException(status_code=403, detail="Token de conductor invalido o desactivado")
 
-        # Check parent subscription
         parent_token = drv_tok.get("parent_token")
         if parent_token:
             parent = await db.site_tokens.find_one({"token": parent_token, "active": True})
@@ -445,34 +635,40 @@ async def login(body: LoginIn, request: Request):
             if _is_expired(parent):
                 raise HTTPException(status_code=403, detail="Tu suscripcion ha expirado. Solicita renovacion a tu administrador.")
 
-        # Lock to device on first use
+            parent_company_id = parent.get("company_id")
+            if parent_company_id:
+                company = await db.companies.find_one({"id": parent_company_id})
+                if company and not company.get("active", True):
+                    raise HTTPException(status_code=403, detail="La empresa esta desactivada. Contacta a tu administrador.")
+
         if body.device_id and not drv_tok.get("device_id"):
             await db.site_tokens.update_one({"token": body.driver_token.strip()}, {"$set": {"device_id": body.device_id}})
-    
-    # Single session enforcement: bump version + new session id
+
+    # Single session enforcement
     new_ver = int(user.get("token_version", 0)) + 1
     sid = str(uuid.uuid4())
-    
+
     await db.users.update_one({"id": user["id"]}, {"$set": {"token_version": new_ver, "current_session_id": sid}})
-    
+
     pub_user = UserResponse(
         id=user["id"],
         email=email,
         name=user.get("name"),
         role=user.get("role"),
-        phone=user.get("phone")
+        phone=user.get("phone"),
+        company_id=company_id,
     )
-    
+
     unit = None
-    if user.get("role") == "driver":
+    if role in ("conductor", "driver"):
         unit = await db.units.find_one({"driver_id": user["id"]}, {"_id": 0})
         if not unit:
-            # Auto-create unit if missing
             count = await db.units.count_documents({})
             lat, lng, heading = interp_corridor(0.0)
             unit = {
                 "id": str(uuid.uuid4()),
                 "driver_id": user["id"],
+                "company_id": company_id,
                 "name": f"NL-{count + 1:02d}",
                 "driver_name": user.get("name", "Conductor"),
                 "plate": f"NL-{uuid.uuid4().hex[:6].upper()}",
@@ -499,14 +695,15 @@ async def login(body: LoginIn, request: Request):
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             await db.units.insert_one({**unit})
-    
-    token = create_access_token(user["id"], email, role=user.get("role"), ver=new_ver, sid=sid)
-    
+
+    token = create_access_token(user["id"], email, role=role, ver=new_ver, sid=sid)
+
     return {
         "access_token": token,
         "user": pub_user,
         "unit": unit,
     }
+
 
 @router.get("/me")
 async def me(user: dict = Depends(get_current_user)):
@@ -517,7 +714,17 @@ async def me(user: dict = Depends(get_current_user)):
         name=user.get("name"),
         role=user.get("role"),
         phone=user.get("phone"),
+        company_id=user.get("company_id"),
     )
+
+
+@router.get("/superadmin-key-status")
+async def superadmin_key_status():
+    """Check if a SuperAdmin key is registered (so frontend knows to show admin_key field)."""
+    db = get_db()
+    key = await db.superadmin_keys.find_one({"active": True})
+    return {"registered": key is not None}
+
 
 @router.post("/logout")
 async def logout(user: dict = Depends(get_current_user)):

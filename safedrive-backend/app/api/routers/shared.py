@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from datetime import datetime, timezone
 from typing import Optional, List
 from app.core.database import get_db
-from app.core.security import get_current_user, require_admin, hash_password, verify_password
+from app.core.security import get_current_user, require_admin, require_monitorista, hash_password, verify_password, get_company_id
 from app.models.schemas_telemetry import AlertAction, ChatIn
 from app.models.schemas_routes import CustomRouteIn, RouteAssign, UnitCreate, UnitUpdate
 from app.models.schemas_auth import AdminCreateUserIn, AdminUpdateUserIn
@@ -112,6 +112,7 @@ async def ensure_unit_for_driver(user: dict, plate: Optional[str] = None, phone:
     unit = {
         "id": str(uuid.uuid4()),
         "driver_id": user["id"],
+        "company_id": user.get("company_id"),
         "name": f"NL-{count + 1:02d}",
         "driver_name": user.get("name", "Conductor"),
         "plate": plate or f"NL-{uuid.uuid4().hex[:6].upper()}",
@@ -145,14 +146,16 @@ async def ensure_unit_for_driver(user: dict, plate: Optional[str] = None, phone:
 async def admin_create_user(body: AdminCreateUserIn, user: dict = Depends(require_admin)):
     db = get_db()
     role = body.role.strip().lower()
-    if role not in ("driver", "admin"):
-        raise HTTPException(status_code=400, detail="Rol invalido. Usa driver o admin")
-    if role == "admin" and user.get("role") != "dev":
-        raise HTTPException(status_code=403, detail="Solo el rol dev puede crear administradores")
+    if role not in ("conductor", "driver", "monitorista", "admin"):
+        raise HTTPException(status_code=400, detail="Rol invalido. Usa conductor o monitorista")
+    if role in ("monitorista", "admin") and user.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo SuperAdmin puede crear monitoristas")
+
+    company_id = get_company_id(user)
 
     email = body.email.lower()
     if await db.users.find_one({"email": email}):
-        raise HTTPException(status_code=400, detail="El correo ya está registrado")
+        raise HTTPException(status_code=400, detail="El correo ya esta registrado")
 
     uid = str(uuid.uuid4())
     doc = {
@@ -161,6 +164,7 @@ async def admin_create_user(body: AdminCreateUserIn, user: dict = Depends(requir
         "password_hash": hash_password(body.password),
         "name": body.name,
         "role": role,
+        "company_id": company_id,
         "phone": body.phone,
         "token_version": 0,
         "current_session_id": None,
@@ -168,13 +172,20 @@ async def admin_create_user(body: AdminCreateUserIn, user: dict = Depends(requir
     }
     await db.users.insert_one(doc)
 
-    return {"user": {"id": uid, "email": email, "name": body.name, "role": role, "phone": body.phone}}
+    return {"user": {"id": uid, "email": email, "name": body.name, "role": role, "phone": body.phone, "company_id": company_id}}
 
 @router.get("/users")
 async def admin_list_users(user: dict = Depends(require_admin)):
     db = get_db()
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0, "current_session_id": 0}).sort("created_at", -1).to_list(500)
-    units = await db.units.find({}, {"_id": 0}).to_list(500)
+    company_id = get_company_id(user)
+    query = {}
+    if company_id:
+        query["company_id"] = company_id
+    users = await db.users.find(query, {"_id": 0, "password_hash": 0, "current_session_id": 0}).sort("created_at", -1).to_list(500)
+    unit_query = {}
+    if company_id:
+        unit_query["company_id"] = company_id
+    units = await db.units.find(unit_query, {"_id": 0}).to_list(500)
     by_driver = {u.get("driver_id"): u for u in units if u.get("driver_id")}
     for item in users:
         item["unit"] = by_driver.get(item.get("id"))
@@ -191,6 +202,10 @@ async def admin_update_user(user_id: str, body: AdminUpdateUserIn, user: dict = 
     if not target:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
+    company_id = get_company_id(user)
+    if company_id and target.get("company_id") != company_id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este usuario")
+
     upd = {}
     if body.email is not None:
         email = body.email.lower()
@@ -206,8 +221,8 @@ async def admin_update_user(user_id: str, body: AdminUpdateUserIn, user: dict = 
         upd["name"] = body.name
     if body.role is not None:
         role = body.role.strip().lower()
-        if role not in ("driver", "admin"):
-            raise HTTPException(status_code=400, detail="Rol invalido. Usa driver o admin")
+        if role not in ("conductor", "driver", "monitorista", "admin"):
+            raise HTTPException(status_code=400, detail="Rol invalido. Usa conductor, driver, monitorista o admin")
         upd["role"] = role
     if body.phone is not None:
         upd["phone"] = body.phone
@@ -227,16 +242,24 @@ async def admin_update_user(user_id: str, body: AdminUpdateUserIn, user: dict = 
 
 @router.get("/units")
 async def list_units(user: dict = Depends(get_current_user)):
-    """List all vehicle units."""
+    """List all vehicle units. Scoped to company for monitoristas."""
     db = get_db()
-    units = await db.units.find({}, {"_id": 0, "password_hash": 0}).to_list(500)
+    company_id = get_company_id(user)
+    query = {}
+    if company_id:
+        query["company_id"] = company_id
+    units = await db.units.find(query, {"_id": 0, "password_hash": 0}).to_list(500)
     return units
 
 @router.get("/units/{unit_id}")
 async def get_unit(unit_id: str, user: dict = Depends(get_current_user)):
     """Get specific unit details and track."""
     db = get_db()
-    unit = await db.units.find_one({"id": unit_id}, {"_id": 0, "password_hash": 0})
+    company_id = get_company_id(user)
+    query = {"id": unit_id}
+    if company_id:
+        query["company_id"] = company_id
+    unit = await db.units.find_one(query, {"_id": 0, "password_hash": 0})
     
     if not unit:
         raise HTTPException(status_code=404, detail="Unidad no encontrada")
@@ -249,12 +272,16 @@ async def get_unit(unit_id: str, user: dict = Depends(get_current_user)):
 @router.post("/units")
 async def create_unit(body: UnitCreate, user: dict = Depends(require_admin)):
     db = get_db()
+    company_id = get_company_id(user)
     driver_id = None
     driver_name = body.driver_name
     driver_phone = body.driver_phone or body.phone
 
     if body.driver_id:
-        driver = await db.users.find_one({"id": body.driver_id, "role": "driver"})
+        driver_query = {"id": body.driver_id, "role": {"$in": ["conductor", "driver"]}}
+        if company_id:
+            driver_query["company_id"] = company_id
+        driver = await db.users.find_one(driver_query)
         if not driver:
             raise HTTPException(status_code=404, detail="Conductor no encontrado")
         driver_id = driver["id"]
@@ -265,14 +292,15 @@ async def create_unit(body: UnitCreate, user: dict = Depends(require_admin)):
             raise HTTPException(status_code=400, detail="Nombre del conductor es obligatorio")
         email = body.driver_email.lower()
         if await db.users.find_one({"email": email}):
-            raise HTTPException(status_code=400, detail="El correo ya está registrado")
+            raise HTTPException(status_code=400, detail="El correo ya esta registrado")
         uid = str(uuid.uuid4())
         await db.users.insert_one({
             "id": uid,
             "email": email,
             "password_hash": hash_password(body.driver_password),
             "name": driver_name,
-            "role": "driver",
+            "role": "conductor",
+            "company_id": company_id,
             "phone": driver_phone,
             "token_version": 0,
             "current_session_id": None,
@@ -283,6 +311,7 @@ async def create_unit(body: UnitCreate, user: dict = Depends(require_admin)):
     unit = {
         "id": str(uuid.uuid4()),
         "driver_id": driver_id,
+        "company_id": company_id,
         "name": body.name,
         "driver_name": driver_name,
         "plate": body.plate,
@@ -326,7 +355,11 @@ async def create_unit(body: UnitCreate, user: dict = Depends(require_admin)):
 @router.put("/units/{unit_id}")
 async def update_unit(unit_id: str, body: UnitUpdate, user: dict = Depends(require_admin)):
     db = get_db()
-    unit = await db.units.find_one({"id": unit_id}, {"_id": 0})
+    company_id = get_company_id(user)
+    query = {"id": unit_id}
+    if company_id:
+        query["company_id"] = company_id
+    unit = await db.units.find_one(query, {"_id": 0})
     if not unit:
         raise HTTPException(status_code=404, detail="Unidad no encontrada")
 
@@ -334,7 +367,10 @@ async def update_unit(unit_id: str, body: UnitUpdate, user: dict = Depends(requi
     if "email" in update:
         update["email"] = str(update["email"]).lower()
     if "driver_id" in update:
-        driver = await db.users.find_one({"id": update["driver_id"], "role": "driver"})
+        driver_query = {"id": update["driver_id"], "role": {"$in": ["conductor", "driver"]}}
+        if company_id:
+            driver_query["company_id"] = company_id
+        driver = await db.users.find_one(driver_query)
         if not driver:
             raise HTTPException(status_code=404, detail="Conductor no encontrado")
         update["driver_name"] = update.get("driver_name") or driver.get("name")
@@ -354,9 +390,14 @@ async def list_alerts(
     status: Optional[str] = Query(None),
     user: dict = Depends(get_current_user)
 ):
-    """List alerts with optional status filter."""
+    """List alerts with optional status filter. Scoped to company for monitoristas."""
     db = get_db()
-    q = {"status": status} if status else {}
+    company_id = get_company_id(user)
+    q = {}
+    if status:
+        q["status"] = status
+    if company_id:
+        q["company_id"] = company_id
     alerts = await db.alerts.find(q, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
     return alerts
 
@@ -421,7 +462,11 @@ async def build_route_for_unit(unit: dict, body: RouteAssign, user: dict) -> dic
 
 async def assign_route_shared(unit_id: str, body: RouteAssign, user: dict) -> dict:
     db = get_db()
-    unit = await db.units.find_one({"id": unit_id}, {"_id": 0})
+    company_id = get_company_id(user)
+    query = {"id": unit_id}
+    if company_id:
+        query["company_id"] = company_id
+    unit = await db.units.find_one(query, {"_id": 0})
     if not unit:
         raise HTTPException(status_code=404, detail="Unidad no encontrada")
 
@@ -441,7 +486,11 @@ async def assign_route_shared(unit_id: str, body: RouteAssign, user: dict) -> di
 @router.get("/units/{unit_id}/route")
 async def get_unit_route(unit_id: str, user: dict = Depends(get_current_user)):
     db = get_db()
-    unit = await db.units.find_one({"id": unit_id}, {"_id": 0, "assigned_route": 1, "route_name": 1, "route_tolerance_m": 1})
+    company_id = get_company_id(user)
+    query = {"id": unit_id}
+    if company_id:
+        query["company_id"] = company_id
+    unit = await db.units.find_one(query, {"_id": 0, "assigned_route": 1, "route_name": 1, "route_tolerance_m": 1})
     if not unit:
         raise HTTPException(status_code=404, detail="Unidad no encontrada")
     return unit
@@ -458,12 +507,18 @@ async def post_unit_route(unit_id: str, body: RouteAssign, user: dict = Depends(
 async def update_alert(alert_id: str, body: AlertAction, user: dict = Depends(require_admin)):
     """Update alert status."""
     db = get_db()
+    company_id = get_company_id(user)
+    query = {"id": alert_id}
+    if company_id:
+        query["company_id"] = company_id
     upd = {"status": body.status}
 
     if body.status == "resolved":
         upd["resolved_at"] = datetime.now(timezone.utc).isoformat()
-    
-    await db.alerts.update_one({"id": alert_id}, {"$set": upd})
+
+    result = await db.alerts.update_one(query, {"$set": upd})
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Alerta no encontrada")
     alert = await db.alerts.find_one({"id": alert_id}, {"_id": 0})
     
     await manager.broadcast({"type": "alert_update", "alert": alert})
@@ -472,11 +527,19 @@ async def update_alert(alert_id: str, body: AlertAction, user: dict = Depends(re
 
 @router.get("/stats")
 async def stats(user: dict = Depends(get_current_user)):
-    """Get monitoring center statistics."""
+    """Get monitoring center statistics. Scoped to company for monitoristas."""
     db = get_db()
-    units = await db.units.find({}, {"_id": 0}).to_list(500)
-    active_alerts = await db.alerts.count_documents({"status": "active", "severity": "critical"})
-    warn_alerts = await db.alerts.count_documents({"status": "active", "severity": "warning"})
+    company_id = get_company_id(user)
+    unit_query = {}
+    alert_query = {}
+    if company_id:
+        unit_query["company_id"] = company_id
+        alert_query["company_id"] = company_id
+    units = await db.units.find(unit_query, {"_id": 0}).to_list(500)
+    active_alerts_query = {"status": "active", "severity": "critical", **alert_query}
+    warn_alerts_query = {"status": "active", "severity": "warning", **alert_query}
+    active_alerts = await db.alerts.count_documents(active_alerts_query)
+    warn_alerts = await db.alerts.count_documents(warn_alerts_query)
     
     by_status = {}
     for u in units:
@@ -497,7 +560,11 @@ async def stats(user: dict = Depends(get_current_user)):
 async def get_unit_chat(unit_id: str, user: dict = Depends(get_current_user)):
     """Get chat history for unit."""
     db = get_db()
-    msgs = await db.chat.find({"unit_id": unit_id}, {"_id": 0}).sort("created_at", 1).limit(200).to_list(200)
+    company_id = get_company_id(user)
+    query = {"unit_id": unit_id}
+    if company_id:
+        query["company_id"] = company_id
+    msgs = await db.chat.find(query, {"_id": 0}).sort("created_at", 1).limit(200).to_list(200)
     return msgs
 
 @router.post("/units/{unit_id}/chat")
@@ -512,6 +579,7 @@ async def post_unit_chat(unit_id: str, body: ChatIn, user: dict = Depends(requir
     msg = {
         "id": str(uuid.uuid4()),
         "unit_id": unit_id,
+        "company_id": get_company_id(user),
         "sender": "base",
         "text": sanitized_text,
         "quick": body.quick,
@@ -580,13 +648,18 @@ def _score_breakdown(alerts: list, unit: dict) -> dict:
 
 @router.get("/safety-scores")
 async def safety_scores(user: dict = Depends(get_current_user)):
-    """Safety score (0–100) for each unit based on recent alerts."""
+    """Safety score (0–100) for each unit based on recent alerts. Scoped to company."""
     db = get_db()
-    units = await db.units.find({}, {"_id": 0}).to_list(500)
-    cutoff = _days_ago(7)
+    company_id = get_company_id(user)
+    unit_query = {}
+    alert_query = {"created_at": {"$gte": _days_ago(7)}}
+    if company_id:
+        unit_query["company_id"] = company_id
+        alert_query["company_id"] = company_id
+    units = await db.units.find(unit_query, {"_id": 0}).to_list(500)
 
     unit_alerts = await db.alerts.find(
-        {"created_at": {"$gte": cutoff}},
+        alert_query,
         {"_id": 0, "unit_id": 1, "type": 1, "severity": 1, "created_at": 1},
     ).to_list(5000)
 
@@ -618,7 +691,11 @@ async def safety_scores(user: dict = Depends(get_current_user)):
 async def safety_score_history(unit_id: str, days: int = Query(7, ge=1, le=30), user: dict = Depends(get_current_user)):
     """Per-day safety score history for a unit (for sparkline charts)."""
     db = get_db()
-    unit = await db.units.find_one({"id": unit_id}, {"_id": 0})
+    company_id = get_company_id(user)
+    query = {"id": unit_id}
+    if company_id:
+        query["company_id"] = company_id
+    unit = await db.units.find_one(query, {"_id": 0})
     if not unit:
         raise HTTPException(status_code=404, detail="Unidad no encontrada")
 

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -7,7 +8,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import CORS_ORIGINS, LOG_LEVEL
-from app.core.database import connect_to_mongo, close_mongo_connection
+from app.core.database import connect_to_mongo, close_mongo_connection, get_db
 from app.api.routers import auth, mobile, shared
 from app.api import websockets
 
@@ -67,9 +68,36 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.on_event("startup")
 async def startup_event():
-    """Connect to MongoDB on startup."""
+    """Connect to MongoDB on startup and bootstrap superadmin."""
     logger.info("[INIT] Starting SafeDrive GPS backend...")
     await connect_to_mongo()
+
+    db = get_db()
+
+    # Bootstrap superadmin if configured
+    try:
+        from app.core.config import ADMIN_EMAIL, ADMIN_PASSWORD
+        if ADMIN_EMAIL and ADMIN_PASSWORD:
+            existing = await db.users.find_one({"email": ADMIN_EMAIL.lower()})
+            if not existing:
+                from app.core.security import hash_password
+                import uuid
+                await db.users.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "email": ADMIN_EMAIL.lower(),
+                    "password_hash": hash_password(ADMIN_PASSWORD),
+                    "name": "SuperAdmin",
+                    "role": "superadmin",
+                    "company_id": None,
+                    "phone": None,
+                    "token_version": 0,
+                    "current_session_id": None,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                logger.info(f"[BOOTSTRAP] SuperAdmin created: {ADMIN_EMAIL}")
+    except Exception as e:
+        logger.warning(f"[BOOTSTRAP] SuperAdmin skip: {e}")
+
     logger.info("[OK] Database connected")
 
 @app.on_event("shutdown")

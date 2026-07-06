@@ -4,7 +4,7 @@ import html
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone
 from app.core.database import get_db
-from app.core.security import get_current_user, require_driver
+from app.core.security import get_current_user, require_conductor, get_company_id
 from app.models.schemas_telemetry import Telemetry, TelemetryBatch, DistractionIn, ChatIn, AlertAction
 from app.services.telemetry_engine import process_telemetry, create_alert
 from app.services.geo_helpers import interp_corridor, CORRIDOR, CORRIDOR_TOLERANCE_M
@@ -16,13 +16,14 @@ async def require_driver_unit(user: dict) -> dict:
     """Get or create unit for driver."""
     db = get_db()
     unit = await db.units.find_one({"driver_id": user["id"]}, {"_id": 0})
-    
+
     if not unit:
         count = await db.units.count_documents({})
         lat, lng, heading = interp_corridor(0.0)
         unit = {
             "id": str(uuid.uuid4()),
             "driver_id": user["id"],
+            "company_id": get_company_id(user),
             "name": f"NL-{count + 1:02d}",
             "driver_name": user.get("name", "Conductor"),
             "plate": f"NL-{uuid.uuid4().hex[:6].upper()}",
@@ -135,9 +136,11 @@ async def driver_distracted(body: DistractionIn, user: dict = Depends(get_curren
 async def driver_monitor_contact(user: dict = Depends(get_current_user)):
     """Get monitoring operator contact info."""
     db = get_db()
-    admin = await db.users.find_one({"role": "admin", "phone": {"$ne": None}}, {"_id": 0, "password_hash": 0})
+    company_id = get_company_id(user)
+    query = {"role": {"$in": ["monitorista", "admin"]}, "company_id": company_id}
+    admin = await db.users.find_one({**query, "phone": {"$ne": None}}, {"_id": 0, "password_hash": 0})
     if not admin:
-        admin = await db.users.find_one({"role": "admin"}, {"_id": 0, "password_hash": 0})
+        admin = await db.users.find_one(query, {"_id": 0, "password_hash": 0})
     return admin or {}
 
 @router.get("/alerts")
@@ -170,6 +173,7 @@ async def driver_post_chat(body: ChatIn, user: dict = Depends(get_current_user))
         "id": str(uuid.uuid4()),
         "unit_id": unit["id"],
         "unit_name": unit["name"],
+        "company_id": get_company_id(user),
         "sender": "driver",
         "text": sanitized_text,
         "quick": body.quick,

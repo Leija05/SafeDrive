@@ -8,6 +8,7 @@ class LoginIn(BaseModel):
     password: str
     site_token: Optional[str] = None
     driver_token: Optional[str] = None
+    admin_key: Optional[str] = None
     device_id: Optional[str] = None
 
 class RegisterIn(BaseModel):
@@ -17,14 +18,14 @@ class RegisterIn(BaseModel):
     name: str
     phone: Optional[str] = None
     plate: Optional[str] = None
-    role: Optional[str] = "driver"
+    role: Optional[str] = "conductor"
 
 class AdminCreateUserIn(BaseModel):
     """Admin creating a new user."""
     email: EmailStr
     password: str
     name: str
-    role: str = "driver"
+    role: str = "conductor"
     phone: Optional[str] = None
     plate: Optional[str] = None
 
@@ -72,3 +73,27 @@ class UserResponse(BaseModel):
     name: str
     role: str
     phone: Optional[str] = None
+    company_id: Optional[str] = None
+
+
+# ── Company Schemas ────────────────────────────────────────────────────────────
+
+class CompanyCreateIn(BaseModel):
+    """Create a new company (superadmin only)."""
+    name: str
+    rfc: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = None
+    monitor_email: EmailStr
+    monitor_password: str
+    monitor_name: str
+
+class CompanyUpdateIn(BaseModel):
+    """Update company info (superadmin only)."""
+    name: Optional[str] = None
+    rfc: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = None
+    active: Optional[bool] = None

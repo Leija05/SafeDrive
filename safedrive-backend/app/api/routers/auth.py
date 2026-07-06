@@ -193,7 +193,11 @@ async def superadmin_update_user(user_id: str, body: SuperAdminUpdateUserIn, use
     if body.name is not None:
         upd["name"] = body.name.strip()
     if body.email is not None:
-        upd["email"] = body.email.lower().strip()
+        new_email = body.email.lower().strip()
+        existing = await db.users.find_one({"email": new_email, "id": {"$ne": user_id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="El correo ya esta registrado por otro usuario")
+        upd["email"] = new_email
     if body.password is not None:
         upd["password_hash"] = hash_password(body.password)
 
@@ -336,8 +340,14 @@ async def verify_site_token(body: SiteTokenVerifyIn, request: Request):
 
 @router.post("/site-tokens")
 async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(require_admin)):
-    """Create a new site access token (admin only). Inherits company_id from creator."""
+    """Create a new monitorista site token (admin only). Inherits company_id from creator.
+    Use POST /driver-tokens for conductor tokens (enforces plan limits)."""
     db = get_db()
+
+    role = body.role or "monitorista"
+    if role != "monitorista":
+        raise HTTPException(status_code=400, detail="Este endpoint solo genera tokens de monitorista. Usa POST /auth/driver-tokens para tokens de conductor.")
+
     raw = secrets.token_hex(24)
 
     company_id = get_company_id(user)
@@ -345,7 +355,7 @@ async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(requir
     doc = {
         "token": raw,
         "name": body.name.strip(),
-        "role": body.role or "monitorista",
+        "role": "monitorista",
         "company_id": company_id,
         "active": True,
         "use_count": 0,
@@ -358,17 +368,16 @@ async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(requir
         "last_used_at": None,
     }
 
-    if body.role == "monitorista":
-        plan = PLANS_CATALOG.get(body.plan_id) if body.plan_id else None
-        if not plan and (body.plan_id or body.cycle):
-            raise HTTPException(status_code=400, detail="Plan no valido. Usa: bronce, plata u oro")
-        if plan:
-            doc["plan_id"] = body.plan_id
-            doc["plan_name"] = plan["name"]
-            doc["max_drivers"] = plan["devices"]
-            doc["drivers_used"] = 0
-            doc["cycle"] = body.cycle or "Mensual"
-            doc["expires_at"] = _expires_in(doc["cycle"]).isoformat()
+    plan = PLANS_CATALOG.get(body.plan_id) if body.plan_id else None
+    if not plan and (body.plan_id or body.cycle):
+        raise HTTPException(status_code=400, detail="Plan no valido. Usa: bronce, plata u oro")
+    if plan:
+        doc["plan_id"] = body.plan_id
+        doc["plan_name"] = plan["name"]
+        doc["max_drivers"] = plan["devices"]
+        doc["drivers_used"] = 0
+        doc["cycle"] = body.cycle or "Mensual"
+        doc["expires_at"] = _expires_in(doc["cycle"]).isoformat()
 
     await db.site_tokens.insert_one(doc)
     return {

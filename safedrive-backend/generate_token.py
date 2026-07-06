@@ -188,26 +188,6 @@ async def interactive(db, mongo_url, db_name):
         max_uses = int(max_uses_str) if max_uses_str.isdigit() else None
 
         doc = await create_monitorista_token(db, name, plan_id, cycle, max_uses, company_id)
-        print("\n" + "-" * 60)
-        print("  PLANES DISPONIBLES")
-        print("-" * 60)
-        for pid, pinfo in PLANS_CATALOG.items():
-            print(f"  [{pid.upper():8}] {pinfo['name']:15} - {pinfo['devices']} conductores")
-        print("-" * 60)
-
-        plan_id = select_from_list(list(PLANS_CATALOG.keys()), "Selecciona el plan:")
-        plan = PLANS_CATALOG[plan_id]
-
-        name = input(f"\nNombre del cliente: ").strip()
-        while not name:
-            name = input("Nombre del cliente (obligatorio): ").strip()
-
-        cycle = select_from_list(CYCLE_OPTIONS, "Ciclo de facturacion:", default="Mensual")
-
-        max_uses_str = input("\nLimite de usos (dejar vacio para ilimitado): ").strip()
-        max_uses = int(max_uses_str) if max_uses_str.isdigit() else None
-
-        doc = await create_monitorista_token(db, name, plan_id, cycle, max_uses)
 
         print(f"\n{'='*60}")
         print(f"  TOKEN MONITORISTA GENERADO")

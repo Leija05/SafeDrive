@@ -16,9 +16,39 @@ from app.models.schemas_auth import (
 from app.models.schemas_telemetry import Telemetry
 from app.services.geo_helpers import interp_corridor, CORRIDOR, CORRIDOR_TOLERANCE_M
 from app.services.ws_manager import manager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+
+# ── Plans catalog ─────────────────────────────────────────────────────────────
+
+PLANS_CATALOG = {
+    "bronce": {"name": "Plan Bronce", "devices": 10},
+    "plata":  {"name": "Plan Plata",  "devices": 25},
+    "oro":    {"name": "Plan Oro",    "devices": 50},
+}
+
+CYCLE_DAYS = {
+    "Semanal": 7, "Mensual": 30, "Bimestral": 60,
+    "Trimestral": 90, "Anual": 365,
+}
+
+
+def _expires_in(cycle: str) -> datetime:
+    """Calculate expiration date from cycle string."""
+    days = CYCLE_DAYS.get(cycle, 30)
+    return datetime.now(timezone.utc) + timedelta(days=days)
+
+
+def _is_expired(tok: dict) -> bool:
+    """Check if token has expired."""
+    exp = tok.get("expires_at")
+    if not exp:
+        return False
+    try:
+        return datetime.fromisoformat(exp) < datetime.now(timezone.utc)
+    except (ValueError, TypeError):
+        return False
 
 @router.post("/register")
 async def register(body: RegisterIn, request: Request, user: dict = Depends(require_admin)):
@@ -107,6 +137,9 @@ async def verify_site_token(body: SiteTokenVerifyIn, request: Request):
     if not tok:
         raise HTTPException(status_code=403, detail="Token de acceso invalido o desactivado")
 
+    if _is_expired(tok):
+        raise HTTPException(status_code=403, detail="Tu suscripcion ha expirado. Contacta a tu administrador para renovar.")
+
     if tok.get("max_uses") is not None:
         used = tok.get("use_count", 0)
         if used >= tok["max_uses"]:
@@ -117,11 +150,11 @@ async def verify_site_token(body: SiteTokenVerifyIn, request: Request):
         {"$inc": {"use_count": 1}, "$set": {"last_used_at": datetime.now(timezone.utc).isoformat()}}
     )
 
-    return {"ok": True, "name": tok.get("name", "")}
+    return {"ok": True, "name": tok.get("name", ""), "expires_at": tok.get("expires_at")}
 
 @router.post("/site-tokens")
 async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(require_admin)):
-    """Create a new site access token (admin only)."""
+    """Create a new site access token (admin only). For monitorista tokens, a plan + cycle is required."""
     db = get_db()
     raw = secrets.token_hex(24)
     doc = {
@@ -138,8 +171,31 @@ async def create_site_token(body: SiteTokenCreateIn, user: dict = Depends(requir
         "created_at": datetime.now(timezone.utc).isoformat(),
         "last_used_at": None,
     }
+
+    # Plan-based token for monitoristas
+    if body.role == "monitorista":
+        plan = PLANS_CATALOG.get(body.plan_id) if body.plan_id else None
+        if not plan and (body.plan_id or body.cycle):
+            raise HTTPException(status_code=400, detail="Plan no valido. Usa: bronce, plata u oro")
+        if plan:
+            doc["plan_id"] = body.plan_id
+            doc["plan_name"] = plan["name"]
+            doc["max_drivers"] = plan["devices"]
+            doc["drivers_used"] = 0
+            doc["cycle"] = body.cycle or "Mensual"
+            doc["expires_at"] = _expires_in(doc["cycle"]).isoformat()
+
     await db.site_tokens.insert_one(doc)
-    return {"token": raw, "name": doc["name"], "role": doc["role"]}
+    return {
+        "token": raw,
+        "name": doc["name"],
+        "role": doc["role"],
+        "plan_id": doc.get("plan_id"),
+        "plan_name": doc.get("plan_name"),
+        "max_drivers": doc.get("max_drivers"),
+        "cycle": doc.get("cycle"),
+        "expires_at": doc.get("expires_at"),
+    }
 
 @router.get("/site-tokens")
 async def list_site_tokens(user: dict = Depends(require_admin)):
@@ -147,8 +203,19 @@ async def list_site_tokens(user: dict = Depends(require_admin)):
     db = get_db()
     tokens = await db.site_tokens.find(
         {}, {"_id": 0, "token": 1, "name": 1, "role": 1, "active": 1, "use_count": 1, "max_uses": 1,
-             "unit_id": 1, "driver_id": 1, "device_id": 1, "created_at": 1, "last_used_at": 1}
+             "unit_id": 1, "driver_id": 1, "device_id": 1, "created_at": 1, "last_used_at": 1,
+             "plan_id": 1, "plan_name": 1, "max_drivers": 1, "drivers_used": 1, "cycle": 1, "expires_at": 1}
     ).sort("created_at", -1).to_list(500)
+
+    now = datetime.now(timezone.utc)
+    for t in tokens:
+        if t.get("expires_at"):
+            try:
+                t["expired"] = datetime.fromisoformat(t["expires_at"]) < now
+            except (ValueError, TypeError):
+                t["expired"] = False
+        else:
+            t["expired"] = False
     return tokens
 
 @router.patch("/site-tokens/{tid}")
@@ -163,16 +230,84 @@ async def toggle_site_token(tid: str, user: dict = Depends(require_admin)):
     return {"ok": True, "active": new_active}
 
 
+@router.post("/renew-token/{tid}")
+async def renew_site_token(tid: str, user: dict = Depends(require_admin)):
+    """Extend a monitorista token expiration by its cycle length."""
+    db = get_db()
+    tok = await db.site_tokens.find_one({"token": tid, "role": "monitorista"})
+    if not tok:
+        raise HTTPException(status_code=404, detail="Token monitorista no encontrado")
+
+    cycle = tok.get("cycle", "Mensual")
+    new_exp = _expires_in(cycle)
+
+    await db.site_tokens.update_one(
+        {"token": tid},
+        {"$set": {"expires_at": new_exp.isoformat(), "active": True, "last_used_at": None}}
+    )
+
+    return {"ok": True, "expires_at": new_exp.isoformat(), "cycle": cycle}
+
+
+@router.get("/token-status/{tid}")
+async def token_status(tid: str, user: dict = Depends(require_admin)):
+    """Get detailed status of a monitorista token."""
+    db = get_db()
+    tok = await db.site_tokens.find_one(
+        {"token": tid, "role": "monitorista"},
+        {"_id": 0, "token": 1, "name": 1, "active": 1, "plan_id": 1, "plan_name": 1,
+         "max_drivers": 1, "drivers_used": 1, "cycle": 1, "expires_at": 1, "created_at": 1}
+    )
+    if not tok:
+        raise HTTPException(status_code=404, detail="Token monitorista no encontrado")
+
+    now = datetime.now(timezone.utc)
+    expired = False
+    if tok.get("expires_at"):
+        try:
+            expired = datetime.fromisoformat(tok["expires_at"]) < now
+        except (ValueError, TypeError):
+            pass
+
+    return {
+        **tok,
+        "expired": expired,
+        "remaining_drivers": max(0, (tok.get("max_drivers") or 0) - (tok.get("drivers_used") or 0)),
+    }
+
+
 # --- Driver Token Endpoints ---
 
 @router.post("/driver-tokens")
 async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(require_admin)):
-    """Generate driver activation tokens. One per unit/driver."""
+    """Generate driver activation tokens. Requires a parent monitorista token to enforce plan limits."""
     db = get_db()
     tokens = []
 
+    # Parent monitorista token must be provided
+    parent_tok = None
+    if body.parent_token:
+        parent_tok = await db.site_tokens.find_one({"token": body.parent_token.strip(), "role": "monitorista"})
+        if not parent_tok:
+            raise HTTPException(status_code=404, detail="Token monitorista no encontrado")
+        if not parent_tok.get("active"):
+            raise HTTPException(status_code=403, detail="El token monitorista esta desactivado")
+        if _is_expired(parent_tok):
+            raise HTTPException(status_code=403, detail="La suscripcion ha expirado. Renueva antes de crear tokens de conductor.")
+
+        max_drivers = parent_tok.get("max_drivers") or 0
+        drivers_used = parent_tok.get("drivers_used") or 0
+        remaining = max_drivers - drivers_used
+
+        if max_drivers > 0 and remaining < body.count:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Limite alcanzado: tu plan permite {max_drivers} conductores y ya usaste {drivers_used}. "
+                       f"Solo puedes crear {max(0, remaining)} mas."
+            )
+
     for i in range(body.count):
-        raw = secrets.token_hex(16)  # shorter than monitorista tokens for easy typing
+        raw = secrets.token_hex(16)
         doc = {
             "token": raw,
             "name": f"Conductor-{uuid.uuid4().hex[:4].upper()}",
@@ -183,12 +318,12 @@ async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(r
             "unit_id": None,
             "driver_id": None,
             "device_id": None,
+            "parent_token": body.parent_token,
             "created_by": user["id"],
             "created_at": datetime.now(timezone.utc).isoformat(),
             "last_used_at": None,
         }
 
-        # Link to specific unit if provided
         if body.unit_ids and i < len(body.unit_ids):
             unit = await db.units.find_one({"id": body.unit_ids[i]}, {"_id": 0})
             if unit:
@@ -196,7 +331,6 @@ async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(r
                 doc["driver_id"] = unit.get("driver_id")
                 doc["name"] = f"{unit.get('name', 'Unidad')} · {unit.get('driver_name', 'Conductor')}"
 
-        # Link to specific driver if provided
         if not doc["driver_id"] and body.driver_ids and i < len(body.driver_ids):
             driver = await db.users.find_one({"id": body.driver_ids[i], "role": "driver"}, {"_id": 0})
             if driver:
@@ -206,7 +340,14 @@ async def create_driver_tokens(body: DriverTokenCreateIn, user: dict = Depends(r
         await db.site_tokens.insert_one(doc)
         tokens.append({"token": raw, "name": doc["name"], "unit_id": doc["unit_id"], "driver_id": doc["driver_id"]})
 
-    return {"tokens": tokens}
+    # Update parent token driver count
+    if parent_tok:
+        await db.site_tokens.update_one(
+            {"token": body.parent_token.strip()},
+            {"$inc": {"drivers_used": body.count}}
+        )
+
+    return {"tokens": tokens, "parent_token": body.parent_token}
 
 
 @router.get("/driver-tokens")
@@ -230,6 +371,15 @@ async def verify_driver_token(body: DriverTokenVerifyIn, request: Request):
     tok = await db.site_tokens.find_one({"token": body.token.strip(), "role": "conductor", "active": True})
     if not tok:
         raise HTTPException(status_code=403, detail="Token de conductor invalido o desactivado")
+
+    # Check parent monitorista token validity
+    parent_token = tok.get("parent_token")
+    if parent_token:
+        parent = await db.site_tokens.find_one({"token": parent_token, "active": True})
+        if not parent:
+            raise HTTPException(status_code=403, detail="La suscripcion asociada a este token ya no esta activa")
+        if _is_expired(parent):
+            raise HTTPException(status_code=403, detail="La suscripcion ha expirado. Contacta a tu administrador.")
 
     if tok.get("max_uses") is not None:
         used = tok.get("use_count", 0)
@@ -275,6 +425,8 @@ async def login(body: LoginIn, request: Request):
         site_tok = await db.site_tokens.find_one({"token": body.site_token.strip(), "role": "monitorista", "active": True})
         if not site_tok:
             raise HTTPException(status_code=403, detail="Token de acceso invalido o desactivado")
+        if _is_expired(site_tok):
+            raise HTTPException(status_code=403, detail="Tu suscripcion ha expirado. Contacta a tu administrador para renovar.")
 
     # Driver token check — required for driver role
     if user.get("role") == "driver":
@@ -283,6 +435,15 @@ async def login(body: LoginIn, request: Request):
         drv_tok = await db.site_tokens.find_one({"token": body.driver_token.strip(), "role": "conductor", "active": True})
         if not drv_tok:
             raise HTTPException(status_code=403, detail="Token de conductor invalido o desactivado")
+
+        # Check parent subscription
+        parent_token = drv_tok.get("parent_token")
+        if parent_token:
+            parent = await db.site_tokens.find_one({"token": parent_token, "active": True})
+            if not parent:
+                raise HTTPException(status_code=403, detail="La suscripcion asociada a tu cuenta ya no esta activa")
+            if _is_expired(parent):
+                raise HTTPException(status_code=403, detail="Tu suscripcion ha expirado. Solicita renovacion a tu administrador.")
 
         # Lock to device on first use
         if body.device_id and not drv_tok.get("device_id"):

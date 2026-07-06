@@ -49,6 +49,8 @@ class SiteTokenCreateIn(BaseModel):
     role: Optional[str] = "monitorista"  # 'monitorista' | 'conductor'
     unit_id: Optional[str] = None
     driver_id: Optional[str] = None
+    plan_id: Optional[str] = None       # 'bronce' | 'plata' | 'oro' (for monitorista)
+    cycle: Optional[str] = None         # 'Semanal' | 'Mensual' | etc.
 
 class DriverTokenVerifyIn(BaseModel):
     """Driver token verification request."""
@@ -58,7 +60,8 @@ class DriverTokenVerifyIn(BaseModel):
 class DriverTokenCreateIn(BaseModel):
     """Create one or more driver tokens."""
     count: int = 1
-    unit_ids: Optional[list[str]] = None  # optional: link to existing units
+    parent_token: Optional[str] = None  # monitorista token to enforce plan limit
+    unit_ids: Optional[list[str]] = None
     driver_ids: Optional[list[str]] = None
     max_uses: Optional[int] = None
 

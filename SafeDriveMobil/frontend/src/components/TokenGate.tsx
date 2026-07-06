@@ -3,44 +3,33 @@ import {
   View, Text, TextInput, StyleSheet, KeyboardAvoidingView,
   Platform, ScrollView, ActivityIndicator, Pressable,
 } from "react-native";
-import { Redirect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useAuth } from "@/src/context/AuthContext";
 import { colors, spacing, radius, MONO } from "@/src/theme";
+import { ApiError } from "@/src/lib/api";
 import Button from "@/src/components/ui/Button";
-import TokenGate from "@/src/components/TokenGate";
 
-export default function Login() {
+export default function TokenGate({ onDone }: { onDone: () => void }) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { token, login, conflict, driverTokenVerified } = useAuth();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { verifyDriverToken } = useAuth();
+  const [tokenInput, setTokenInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  if (token) return <Redirect href="/" />;
-
-  // Show TokenGate first if no driver token is verified
-  if (!driverTokenVerified) {
-    return <TokenGate onDone={() => {}} />;
-  }
 
   const submit = async () => {
     setError("");
-    if (!email.trim() || !password) {
-      setError("Ingresa correo y contraseña");
+    const raw = tokenInput.trim();
+    if (!raw) {
+      setError("Ingresa tu token de activación");
       return;
     }
     setBusy(true);
     try {
-      await login(email, password);
-      router.replace("/");
+      await verifyDriverToken(raw);
+      onDone();
     } catch (e: any) {
-      setError(e?.message || "No se pudo iniciar sesión");
+      setError(e?.message || "Token inválido");
     } finally {
       setBusy(false);
     }
@@ -64,73 +53,42 @@ export default function Login() {
       >
         <View style={styles.brandSection}>
           <View style={styles.logoBox}>
-            <MaterialCommunityIcons name="shield-car" size={32} color={colors.brand} />
+            <MaterialCommunityIcons name="shield-key" size={32} color={colors.brand} />
           </View>
           <View>
-            <Text style={styles.brand}>SAFEDRIVE</Text>
-            <Text style={styles.brandSub}>OPERADOR EN CARRETERA</Text>
+            <Text style={styles.brand}>ACTIVACIÓN</Text>
+            <Text style={styles.brandSub}>TOKEN DE CONDUCTOR</Text>
           </View>
         </View>
 
         <View style={styles.greetingSection}>
-          <Text style={styles.title}>Bienvenido</Text>
+          <Text style={styles.title}>Token de acceso</Text>
           <Text style={styles.subtitle}>
-            Acceso exclusivo para conductores registrados. Ingresa tus credenciales para comenzar tu ruta.
+            Ingresa el token único que recibiste al contratar el servicio.
+            Este código vincula tu dispositivo con tu unidad.
           </Text>
         </View>
 
-        {conflict && (
-          <View style={styles.conflictBox} testID="session-conflict-banner">
-            <MaterialCommunityIcons name="cellphone-lock" size={18} color={colors.error} />
-            <Text style={styles.conflictText}>
-              Tu sesión fue iniciada en otro dispositivo. Vuelve a iniciar sesión.
-            </Text>
-          </View>
-        )}
-
         <View style={styles.formCard}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>CORREO ELECTRÓNICO</Text>
+            <Text style={styles.label}>TOKEN DE ACTIVACIÓN</Text>
             <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons name="email-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
+              <MaterialCommunityIcons name="key-variant" size={18} color={colors.textTertiary} style={styles.inputIcon} />
               <TextInput
-                testID="email-input"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="conductor@safedrive.mx"
+                testID="driver-token-input"
+                value={tokenInput}
+                onChangeText={setTokenInput}
+                placeholder="Ingresa tu token"
                 placeholderTextColor={colors.textTertiary}
                 autoCapitalize="none"
-                keyboardType="email-address"
+                autoCorrect={false}
                 style={styles.input}
               />
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>CONTRASEÑA</Text>
-            <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons name="lock-outline" size={18} color={colors.textTertiary} style={styles.inputIcon} />
-              <TextInput
-                testID="password-input"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor={colors.textTertiary}
-                secureTextEntry={!showPassword}
-                style={styles.input}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                <MaterialCommunityIcons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={18}
-                  color={colors.textTertiary}
-                />
-              </Pressable>
             </View>
           </View>
 
           {!!error && (
-            <View style={styles.errorBox} testID="login-error">
+            <View style={styles.errorBox} testID="token-error">
               <MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.error} />
               <Text style={styles.errorText}>{error}</Text>
             </View>
@@ -141,19 +99,17 @@ export default function Login() {
               <ActivityIndicator color={colors.onBrand} />
             ) : (
               <>
-                <MaterialCommunityIcons name="arrow-right-circle" size={20} color={colors.onBrand} />
-                <Text style={styles.submitBtnText}>ENTRAR A LA RUTA</Text>
+                <MaterialCommunityIcons name="check-circle" size={20} color={colors.onBrand} />
+                <Text style={styles.submitBtnText}>ACTIVAR DISPOSITIVO</Text>
               </>
             )}
           </Button>
         </View>
 
         <View style={styles.footer}>
-          <View style={styles.statusIndicator}>
-            <View style={styles.dot} />
-            <View style={styles.dotPulse} />
-          </View>
-          <Text style={styles.footerText}>SafeDrive Enforcer Activo</Text>
+          <Text style={styles.footerText}>
+            ¿No tienes token? Contacta a tu administrador
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -237,7 +193,6 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     fontSize: 15,
   },
-  eyeBtn: { paddingHorizontal: spacing.md, paddingVertical: spacing.md },
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -264,55 +219,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 1.5,
   },
-  conflictBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.errorDim,
-    borderWidth: 1,
-    borderColor: colors.error,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-  },
-  conflictText: {
-    color: colors.onSurface,
-    fontSize: 12,
-    flex: 1,
-    lineHeight: 17,
-  },
   footer: {
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
     marginTop: spacing["2xl"],
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.success,
-  },
-  dotPulse: {
-    position: "absolute",
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderColor: colors.successDim,
   },
   footerText: {
     color: colors.textTertiary,
     fontFamily: MONO,
-    fontSize: 11,
+    fontSize: 10,
     letterSpacing: 1,
+    textAlign: "center",
   },
 });

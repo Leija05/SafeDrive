@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import api, { getWsUrl } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import FleetMap, { RoutePickerMap, getDriverColor } from "@/components/FleetMap";
+import DriverScoreCard from "@/components/DriverScoreCard";
+import TokenManager from "@/components/TokenManager";
 import { toast } from "sonner";
 import {
   ShieldCheck, Truck, Warning, MapPinLine, Bridge, WifiSlash, SignOut,
   Broadcast, ChatCircleDots, Siren, NavigationArrow, X, PaperPlaneRight, Gauge, UserPlus, PencilSimple, FloppyDisk, Crosshair, Pulse, ClockCounterClockwise,
-  ArrowsIn, CellSignalHigh, Eye, CheckCircle, Article,
+  ArrowsIn, CellSignalHigh, Eye, CheckCircle, Article, Bell, BellRinging, Key,
 } from "@phosphor-icons/react";
 
 const STATUS_LABEL = {
@@ -37,12 +39,20 @@ function routeConfigFor(unit, globalRoute) {
 
 function Metric({ label, value, icon: Icon, color, testid, trend }) {
   return (
-    <div data-testid={testid} className="card-tactical p-4 flex items-center justify-between transition-all duration-200 hover:border-white/20 group">
-      <div>
+    <div data-testid={testid} className="card-tactical card-glow p-4 flex items-center justify-between transition-all duration-200 group rounded-xl overflow-hidden">
+      <div className="relative">
         <div className="text-[11px] font-bold uppercase tracking-[0.15em] text-zinc-500 font-tel">{label}</div>
-        <div className="font-tel text-3xl font-semibold mt-1.5 tracking-tight" style={{ color: color || "#fff" }}>{value}</div>
+        <div className="font-tel text-3xl font-semibold mt-1.5 tracking-tight metric-value" style={{ color: color || "#fff" }}>{value}</div>
+        {trend !== undefined && (
+          <div className="flex items-center gap-1 mt-0.5">
+            <span className={`text-[10px] font-bold font-tel ${trend >= 0 ? "text-[#00E676]" : "text-[#FF2A2A]"}`}>
+              {trend >= 0 ? "+" : ""}{trend}
+            </span>
+            <span className="text-[9px] text-zinc-600">vs ayer</span>
+          </div>
+        )}
       </div>
-      <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:border-white/20 transition-all">
+      <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:border-white/20 group-hover:scale-105 transition-all duration-200">
         <Icon size={24} weight="duotone" style={{ color: color || "#71717A" }} />
       </div>
     </div>
@@ -65,16 +75,23 @@ export default function Dashboard() {
   const [unitForm, setUnitForm] = useState({ name: "", driver_name: "", plate: "", imei: "", email: "", password: "", phone: "", color: "#00E676" });
   const [routePoints, setRoutePoints] = useState([]);
   const [routeTolerance, setRouteTolerance] = useState(400);
+  const [scores, setScores] = useState([]);
+  const [showNotif, setShowNotif] = useState(false);
+  const [recentAlerts, setRecentAlerts] = useState([]);
+  const [showTokenManager, setShowTokenManager] = useState(false);
   const wsRef = useRef(null);
   const chatEndRef = useRef(null);
+  const notifRef = useRef(null);
 
   const unitList = Object.values(units);
   const hasCritical = unitList.some((u) => u.status === "alerta");
+  const safetyScore = scores.length > 0 ? Math.round(scores.reduce((a, s) => a + s.score, 0) / scores.length) : null;
 
   const loadAll = useCallback(async () => {
-    const [u, a, s, r] = await Promise.all([
+    const [u, a, s, r, sc] = await Promise.all([
       api.get("/units"), api.get("/alerts", { params: { status: "active" } }),
       api.get("/stats"), api.get("/route"),
+      api.get("/safety-scores").catch(() => ({ data: [] })),
     ]);
     const map = {};
     u.data.forEach((x) => (map[x.id] = x));
@@ -82,6 +99,17 @@ export default function Dashboard() {
     setAlerts(a.data);
     setStats(s.data);
     setRoute(r.data);
+    setScores(sc.data || []);
+  }, []);
+
+  useEffect(() => {
+    api.get("/alerts", { params: { status: "active" } }).then((r) => setRecentAlerts(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotif(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
@@ -98,6 +126,7 @@ export default function Dashboard() {
         setUnits((prev) => { const n = { ...prev }; delete n[msg.unit_id]; return n; });
       } else if (msg.type === "alert") {
         setAlerts((prev) => [msg.alert, ...prev.filter((a) => a.id !== msg.alert.id)]);
+        setRecentAlerts((prev) => [msg.alert, ...prev].slice(0, 20));
         if (msg.alert.severity === "critical")
           toast.error(`${msg.alert.unit_name}: ${msg.alert.message}`, { duration: 6000 });
       } else if (msg.type === "alert_update") {
@@ -211,10 +240,76 @@ export default function Dashboard() {
               <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500 font-tel">Centro de Control · NLD</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {safetyScore !== null && (
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-tel px-2.5 py-1.5 rounded-lg border"
+                style={{
+                  borderColor: safetyScore >= 75 ? "rgba(0,230,118,0.25)" : safetyScore >= 50 ? "rgba(255,184,0,0.25)" : "rgba(255,42,42,0.25)",
+                  color: safetyScore >= 75 ? "#00E676" : safetyScore >= 50 ? "#FFB800" : "#FF2A2A",
+                  background: safetyScore >= 75 ? "rgba(0,230,118,0.05)" : safetyScore >= 50 ? "rgba(255,184,0,0.05)" : "rgba(255,42,42,0.05)",
+                }}>
+                <Gauge size={13} weight="fill" /> {safetyScore}
+              </div>
+            )}
             <div className={`hidden sm:flex items-center gap-2 text-xs font-tel px-3 py-1.5 rounded-lg border transition-all ${hasCritical ? "border-[#FF2A2A]/40 text-[#FF2A2A] pulse-critical bg-[#FF2A2A]/5" : "border-[#00E676]/30 text-[#00E676] bg-[#00E676]/5"}`}>
               <span className="w-2 h-2 rounded-full" style={{ background: hasCritical ? "#FF2A2A" : "#00E676" }} />
               {hasCritical ? "ALERTA ACTIVA" : "SISTEMA NOMINAL"}
+            </div>
+            <button onClick={() => setShowTokenManager(true)}
+              className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
+              <Key size={15} />
+              <span className="hidden sm:inline text-xs">Tokens</span>
+            </button>
+            <div className="relative" ref={notifRef}>
+              <button onClick={() => setShowNotif((v) => !v)}
+                className="relative flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
+                {recentAlerts.length > 0 ? <BellRinging size={16} weight="fill" className="text-[#FF2A2A]" /> : <Bell size={16} />}
+                {recentAlerts.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#FF2A2A] text-white text-[9px] font-bold flex items-center justify-center font-tel">
+                    {recentAlerts.length > 9 ? "9+" : recentAlerts.length}
+                  </span>
+                )}
+              </button>
+              {showNotif && (
+                <div className="absolute right-0 top-full mt-2 w-72 max-h-96 overflow-y-auto card-tactical shadow-2xl rounded-xl z-[2000] fade-up">
+                  <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                    <span className="font-heading font-bold text-sm flex items-center gap-2">
+                      <Bell size={14} weight="fill" /> Notificaciones
+                    </span>
+                    <span className="text-[11px] text-zinc-500 font-tel">{recentAlerts.length}</span>
+                  </div>
+                  {recentAlerts.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-8 text-zinc-600">
+                      <CheckCircle size={20} weight="fill" className="text-[#00E676]/50" />
+                      <span className="text-sm font-tel">Sin notificaciones</span>
+                    </div>
+                  ) : (
+                    <div className="p-2 space-y-1">
+                      {recentAlerts.slice(0, 15).map((a) => {
+                        const col = a.severity === "critical" ? "#FF2A2A" : "#FFB800";
+                        return (
+                          <div key={a.id} className="p-2.5 rounded-xl hover:bg-white/[0.03] transition-all cursor-pointer" onClick={() => { setSelected(a.unit_id); setShowNotif(false); }}>
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: col }} />
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-semibold truncate font-tel">{a.unit_name}</div>
+                                <div className="text-[10px] text-zinc-500 truncate">{a.message}</div>
+                              </div>
+                              <span className="text-[9px] text-zinc-600 font-tel">{a.type}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="border-t border-white/5 p-2">
+                    <button onClick={() => setShowNotif(false)}
+                      className="w-full text-center text-[11px] text-zinc-500 hover:text-white py-1.5 transition-colors font-tel">
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <button data-testid="logout-button" onClick={() => { logout(); navigate("/"); }}
               className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
@@ -225,7 +320,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="p-3 lg:p-4 min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] overflow-y-auto lg:overflow-hidden flex flex-col gap-3">
+      <main className="page-enter p-3 lg:p-4 min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)] overflow-y-auto lg:overflow-hidden flex flex-col gap-3">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 shrink-0">
           <Metric testid="metric-total" label="Unidades" value={stats?.total_units ?? 0} icon={Truck} color="#fff" />
           <Metric testid="metric-enruta" label="En ruta" value={stats?.en_ruta ?? 0} icon={NavigationArrow} color="#00E676" />
@@ -268,12 +363,14 @@ export default function Dashboard() {
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-                  {helpdeskUnits.map((u) => (
+                  {helpdeskUnits.map((u) => {
+                    const unitScore = scores.find((s) => s.unit_id === u.id);
+                    return (
                     <button key={u.id} data-testid={`unit-card-${u.name}`} onClick={() => setSelected(u.id)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all ${selected === u.id ? "border-white/40 bg-white/[0.06]" : "border-white/10 hover:border-white/25 hover:bg-white/[0.02]"} ${alertUnitIds.has(u.id) ? "ring-1 ring-[#FF2A2A]/40" : ""}`}>
+                      className={`w-full text-left p-3 rounded-xl border transition-all hover-lift ${selected === u.id ? "border-white/40 bg-white/[0.06]" : "border-white/10 hover:border-white/25 hover:bg-white/[0.02]"} ${alertUnitIds.has(u.id) ? "ring-1 ring-[#FF2A2A]/40" : ""}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-black/30" style={{ background: getDriverColor(u) }} />
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-black/30 status-dot" style={{ background: getDriverColor(u) }} />
                           <span className="font-tel font-semibold text-sm truncate">{u.name}</span>
                           <span className="text-xs text-zinc-500 truncate hidden sm:inline">{u.driver_name}</span>
                         </div>
@@ -284,7 +381,15 @@ export default function Dashboard() {
                         <span className="w-1 h-1 rounded-full bg-zinc-700" />
                         <span className="flex items-center gap-1"><MapPinLine size={12} /> {u.deviation_m?.toFixed(0)}m</span>
                         <span className="w-1 h-1 rounded-full bg-zinc-700" />
-                        <span>{u.battery ?? "--"}%</span>
+                        <span style={{ color: u.battery < 20 ? "#FF2A2A" : u.battery < 50 ? "#FFB800" : "#00E676" }}>{u.battery ?? "--"}%</span>
+                        {unitScore && (
+                          <>
+                            <span className="w-1 h-1 rounded-full bg-zinc-700" />
+                            <span className="flex items-center gap-1" style={{ color: unitScore.score >= 75 ? "#00E676" : unitScore.score >= 50 ? "#FFB800" : "#FF2A2A" }}>
+                              <ShieldCheck size={11} weight="fill" /> {unitScore.score}
+                            </span>
+                          </>
+                        )}
                       </div>
                       <div className="flex gap-2 mt-2.5">
                         <span onClick={(e) => { e.stopPropagation(); openRouteEditor(u); }} className="text-[11px] px-2 py-1 rounded-lg border border-white/10 text-[#007AFF] hover:border-[#007AFF]/60 hover:bg-[#007AFF]/5 flex items-center gap-1 transition-all cursor-pointer">
@@ -295,7 +400,7 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </button>
-                  ))}
+                  )})}
                   {helpdeskUnits.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 gap-2">
                       <Truck size={24} className="text-zinc-700" />
@@ -305,26 +410,29 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-rows-[auto_auto_minmax(0,1fr)] gap-3 min-h-0 overflow-hidden">
-                <div className="card-tactical p-4 rounded-xl">
-                  <div className="font-heading font-bold flex items-center gap-2 text-sm">
-                    <Pulse size={16} className="text-[#00E676]" weight="fill" /> Sincronización
+              <div className="grid grid-rows-[auto_auto_minmax(0,0.9fr)] gap-3 min-h-0 overflow-hidden">
+                {scores.length > 0 && (() => {
+                  const selScore = selected ? scores.find((s) => s.unit_id === selected) : null;
+                  const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, s) => a + s.score, 0) / scores.length) : null;
+                  const dims = selScore ? selScore.dimensions : null;
+                  const cnt = selScore ? selScore.alerts_count : null;
+                  const unitHistory = null;
+                  return (
+                    <DriverScoreCard score={selScore ? selScore.score : avgScore}
+                      dimensions={dims} alertsCount={cnt}
+                      history={unitHistory} />
+                  );
+                })()}
+                {scores.length === 0 && (
+                  <div className="card-tactical p-4 rounded-xl">
+                    <div className="font-heading font-bold flex items-center gap-2 text-sm">
+                      <Gauge size={16} className="text-zinc-500" /> Score de seguridad
+                    </div>
+                    <div className="flex items-center justify-center py-4 text-zinc-600 text-sm font-tel">
+                      Cargando datos de telemetría…
+                    </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 mt-3 font-tel text-[11px] text-zinc-400">
-                    <div className="rounded-lg border border-white/10 p-2.5 text-center">
-                      <div className="text-white text-lg font-semibold">{unitList.filter((u) => u.online).length}</div>
-                      <div className="text-[10px]">online</div>
-                    </div>
-                    <div className="rounded-lg border border-white/10 p-2.5 text-center">
-                      <div className="text-white text-lg font-semibold">{unitList.length}</div>
-                      <div className="text-[10px]">apps</div>
-                    </div>
-                    <div className="rounded-lg border border-white/10 p-2.5 text-center">
-                      <div className="text-white text-lg font-semibold">{alerts.length}</div>
-                      <div className="text-[10px]">alertas</div>
-                    </div>
-                  </div>
-                </div>
+                )}
                 {selectedUnit && (
                   <div className="card-tactical p-4 rounded-xl border-l-[3px] transition-all" style={{ borderLeftColor: getDriverColor(selectedUnit) }}>
                     <div className="flex items-center justify-between gap-2">
@@ -656,6 +764,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {showTokenManager && <TokenManager onClose={() => setShowTokenManager(false)} />}
     </div>
   );
 }

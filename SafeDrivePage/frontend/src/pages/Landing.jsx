@@ -60,7 +60,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="bg-[#050505] text-white min-h-screen">
+    <div className="page-enter bg-[#050505] text-white min-h-screen">
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5">
@@ -114,7 +114,7 @@ export default function Landing() {
             No es un simple rastreador. SafeDrive GPS protege la vida del chofer, el patrimonio de la empresa y asegura los tiempos de cruce internacional.
           </p>
           <div className="flex flex-wrap gap-3 mt-8 fade-up" style={{ animationDelay: "0.3s" }}>
-            <a href="#planes" data-testid="hero-plans-cta" className="bg-white text-black font-bold px-6 py-3 rounded-lg hover:bg-zinc-200 transition-colors flex items-center gap-2 shadow-lg shadow-white/10">
+            <a href="#planes" data-testid="hero-plans-cta" className="bg-white text-black font-bold px-6 py-3 rounded-lg hover:bg-zinc-200 hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 flex items-center gap-2 shadow-lg shadow-white/10">
               Ver planes <ArrowRight size={18} weight="bold" />
             </a>
             <Link to="/login" data-testid="hero-login-cta" className="border border-white/20 hover:border-white/50 font-bold px-6 py-3 rounded-lg transition-colors">
@@ -150,7 +150,7 @@ export default function Landing() {
         <h2 className="font-heading font-black text-2xl sm:text-3xl tracking-tight mb-10">Protección en cada kilómetro</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {FEATURES.map((f, i) => (
-            <div key={f.t} className="card-tactical p-6 hover:border-white/20 transition-all duration-300 fade-up" style={{ animationDelay: `${0.05 * i}s` }}>
+            <div key={f.t} className="card-tactical p-6 hover:border-white/20 transition-all duration-300 fade-up hover-lift card-glow" style={{ animationDelay: `${0.05 * i}s` }}>
               <div className="w-10 h-10 rounded-lg bg-[#00E676]/10 border border-[#00E676]/20 flex items-center justify-center mb-4">
                 <f.icon size={22} weight="duotone" className="text-[#00E676]" />
               </div>
@@ -214,7 +214,7 @@ export default function Landing() {
             <div
               key={p.id}
               data-testid={`plan-${p.id}`}
-              className={`card-tactical p-6 flex flex-col transition-all duration-300 ${p.highlight ? "border-white/30 ring-1 ring-white/20 scale-[1.02]" : "hover:border-white/20"}`}
+              className={`card-tactical p-6 flex flex-col transition-all duration-300 hover-lift ${p.highlight ? "border-white/30 ring-1 ring-white/20 scale-[1.02]" : "hover:border-white/20"}`}
             >
               {p.highlight && (
                 <div className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#00E676] mb-3 bg-[#00E676]/10 px-2.5 py-1 rounded-full self-start">

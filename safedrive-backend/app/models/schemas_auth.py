@@ -7,6 +7,8 @@ class LoginIn(BaseModel):
     email: EmailStr
     password: str
     site_token: Optional[str] = None
+    driver_token: Optional[str] = None
+    device_id: Optional[str] = None
 
 class RegisterIn(BaseModel):
     """User registration request."""
@@ -43,6 +45,21 @@ class SiteTokenVerifyIn(BaseModel):
 class SiteTokenCreateIn(BaseModel):
     """Create a new site token (admin only)."""
     name: str
+    max_uses: Optional[int] = None
+    role: Optional[str] = "monitorista"  # 'monitorista' | 'conductor'
+    unit_id: Optional[str] = None
+    driver_id: Optional[str] = None
+
+class DriverTokenVerifyIn(BaseModel):
+    """Driver token verification request."""
+    token: str
+    device_id: Optional[str] = None
+
+class DriverTokenCreateIn(BaseModel):
+    """Create one or more driver tokens."""
+    count: int = 1
+    unit_ids: Optional[list[str]] = None  # optional: link to existing units
+    driver_ids: Optional[list[str]] = None
     max_uses: Optional[int] = None
 
 class UserResponse(BaseModel):

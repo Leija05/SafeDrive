@@ -522,3 +522,125 @@ async def post_unit_chat(unit_id: str, body: ChatIn, user: dict = Depends(requir
     await manager.broadcast({"type": "chat", "message": msg})
     
     return msg
+
+
+# ── Safety Score ──────────────────────────────────────────────────────────────
+
+def _days_ago(n: int) -> str:
+    """Return ISO string for n days ago."""
+    from datetime import timedelta
+    return (datetime.now(timezone.utc) - timedelta(days=n)).isoformat()
+
+
+def _score_breakdown(alerts: list, unit: dict) -> dict:
+    """
+    Calculate safety score (0-100) and dimension breakdown from alerts + unit state.
+    Higher = safer.  Base 100, penalties per category.
+    """
+    penalty_velocidad = 0
+    penalty_eventos = 0
+    penalty_desvio = 0
+    penalty_senal = 0
+
+    for a in alerts:
+        t = a.get("type", "")
+        sev = a.get("severity", "warning")
+        w = 2 if sev == "critical" else 1
+
+        if t == "exceso_velocidad":
+            penalty_velocidad += 3 * w
+        elif t in ("panico", "distractor", "impacto"):
+            penalty_eventos += 6 * w
+        elif t == "desvio":
+            penalty_desvio += 4 * w
+        elif t == "jammer":
+            penalty_senal += 5 * w
+
+    # penalty for low battery in current reading
+    bat = unit.get("battery", 100)
+    bat_penalty = 3 if bat is not None and bat < 20 else 1 if bat is not None and bat < 50 else 0
+
+    total = max(0, 100 - (penalty_velocidad + penalty_eventos + penalty_desvio + penalty_senal + bat_penalty))
+
+    return {
+        "total": round(total, 0),
+        "dimensions": {
+            "velocidad": max(0, 100 - penalty_velocidad),
+            "eventos_criticos": max(0, 100 - penalty_eventos),
+            "desviaciones": max(0, 100 - penalty_desvio),
+            "senal": max(0, 100 - penalty_senal),
+            "bateria": max(0, 100 - bat_penalty),
+        },
+        "alerts_count": {
+            "critical": sum(1 for a in alerts if a.get("severity") == "critical"),
+            "warning": sum(1 for a in alerts if a.get("severity") == "warning"),
+        },
+    }
+
+
+@router.get("/safety-scores")
+async def safety_scores(user: dict = Depends(get_current_user)):
+    """Safety score (0–100) for each unit based on recent alerts."""
+    db = get_db()
+    units = await db.units.find({}, {"_id": 0}).to_list(500)
+    cutoff = _days_ago(7)
+
+    unit_alerts = await db.alerts.find(
+        {"created_at": {"$gte": cutoff}},
+        {"_id": 0, "unit_id": 1, "type": 1, "severity": 1, "created_at": 1},
+    ).to_list(5000)
+
+    by_unit: dict[str, list] = {}
+    for a in unit_alerts:
+        by_unit.setdefault(a["unit_id"], []).append(a)
+
+    results = []
+    for u in units:
+        alerts = by_unit.get(u["id"], [])
+        score = _score_breakdown(alerts, u)
+        results.append({
+            "unit_id": u["id"],
+            "unit_name": u.get("name"),
+            "driver_name": u.get("driver_name"),
+            "plate": u.get("plate"),
+            "score": score["total"],
+            "dimensions": score["dimensions"],
+            "alerts_count": score["alerts_count"],
+            "status": u.get("status"),
+            "last_update": u.get("last_update"),
+        })
+
+    results.sort(key=lambda r: r["score"])
+    return results
+
+
+@router.get("/safety-scores/{unit_id}/history")
+async def safety_score_history(unit_id: str, days: int = Query(7, ge=1, le=30), user: dict = Depends(get_current_user)):
+    """Per-day safety score history for a unit (for sparkline charts)."""
+    db = get_db()
+    unit = await db.units.find_one({"id": unit_id}, {"_id": 0})
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unidad no encontrada")
+
+    from datetime import timedelta
+
+    history = []
+    now = datetime.now(timezone.utc)
+
+    for d in range(days, -1, -1):
+        day_start = (now - timedelta(days=d)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = (now - timedelta(days=d)).replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        day_alerts = await db.alerts.find({
+            "unit_id": unit_id,
+            "created_at": {"$gte": day_start.isoformat(), "$lte": day_end.isoformat()},
+        }, {"_id": 0, "type": 1, "severity": 1}).to_list(1000)
+
+        score = _score_breakdown(day_alerts, unit)
+        history.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "score": score["total"],
+            "dimensions": score["dimensions"],
+        })
+
+    return {"unit_id": unit_id, "unit_name": unit.get("name"), "history": history}

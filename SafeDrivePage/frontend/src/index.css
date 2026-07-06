@@ -138,3 +138,121 @@ input:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-
   outline: none;
   ring: 2px solid rgba(255, 255, 255, 0.4);
 }
+
+/* ── Skeleton loading ──────────────────────────────────────────────────────── */
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+.skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ── Enhanced card effects ─────────────────────────────────────────────────── */
+
+.card-tactical {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.card-tactical:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.card-glow {
+  position: relative;
+}
+.card-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,42,42,0.2), transparent 40%, transparent 60%, rgba(0,230,118,0.1));
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+.card-glow:hover::before {
+  opacity: 1;
+}
+
+/* ── Value change flash ────────────────────────────────────────────────────── */
+
+@keyframes flash-value {
+  0% { color: #fff; }
+  50% { color: #FF2A2A; }
+  100% { color: #fff; }
+}
+.flash-value { animation: flash-value 0.6s ease-out; }
+
+/* ── Hover lift ────────────────────────────────────────────────────────────── */
+
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+/* ── Metric count-up placeholder ───────────────────────────────────────────── */
+
+.metric-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Status dot pulse ──────────────────────────────────────────────────────── */
+
+.status-dot {
+  position: relative;
+}
+.status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  animation: radar-ping 2s ease-out infinite;
+}
+
+/* ── Glow text ─────────────────────────────────────────────────────────────── */
+
+.text-glow-red {
+  text-shadow: 0 0 20px rgba(255,42,42,0.3), 0 0 60px rgba(255,42,42,0.1);
+}
+.text-glow-green {
+  text-shadow: 0 0 20px rgba(0,230,118,0.3), 0 0 60px rgba(0,230,118,0.1);
+}
+.text-glow-yellow {
+  text-shadow: 0 0 20px rgba(255,184,0,0.3), 0 0 60px rgba(255,184,0,0.1);
+}
+
+/* ── Smooth page transition ────────────────────────────────────────────────── */
+
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-enter 0.35s ease-out both;
+}
+
+/* ── Notification bell shake ───────────────────────────────────────────────── */
+
+@keyframes bell-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(8deg); }
+  50% { transform: rotate(-8deg); }
+  75% { transform: rotate(4deg); }
+}
+.bell-shake { animation: bell-shake 0.5s ease-in-out; }
+
+/* ── Scrollbar subtle ──────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a transparent;
+}

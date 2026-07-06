@@ -60,7 +60,7 @@ function Metric({ label, value, icon: Icon, color, testid, trend }) {
 }
 
 export default function Dashboard() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [units, setUnits] = useState({});
   const [alerts, setAlerts] = useState([]);
@@ -255,6 +255,13 @@ export default function Dashboard() {
               <span className="w-2 h-2 rounded-full" style={{ background: hasCritical ? "#FF2A2A" : "#00E676" }} />
               {hasCritical ? "ALERTA ACTIVA" : "SISTEMA NOMINAL"}
             </div>
+            {user?.role === "superadmin" && (
+              <button onClick={() => navigate("/admin")}
+                className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all border border-transparent hover:border-amber-500/30">
+                <ShieldCheck size={15} />
+                <span className="hidden sm:inline text-xs">Admin</span>
+              </button>
+            )}
             <button onClick={() => setShowTokenManager(true)}
               className="flex items-center gap-2 text-sm px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
               <Key size={15} />

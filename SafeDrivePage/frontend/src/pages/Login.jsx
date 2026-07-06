@@ -112,8 +112,8 @@ function LoginForm() {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      await login(email, password);
-      navigate("/dashboard");
+      const u = await login(email, password);
+      navigate(u?.role === "superadmin" ? "/admin" : "/dashboard");
     } catch (err) {
       setError(formatApiError(err.response?.data?.detail) || err.message);
     } finally {

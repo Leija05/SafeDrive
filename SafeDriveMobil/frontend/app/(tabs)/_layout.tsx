@@ -19,38 +19,58 @@ export default function TabsLayout() {
           backgroundColor: colors.surfaceSecondary,
           borderTopColor: colors.border,
           borderTopWidth: 1,
-          height: Platform.OS === "ios" ? 88 : 64,
-          paddingTop: 6,
+          height: Platform.OS === "ios" ? 92 : 68,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === "ios" ? 24 : 8,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-        tabBarLabelStyle: { fontSize: 10, letterSpacing: 0.5, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 10, letterSpacing: 0.8, fontWeight: "700" },
+        tabBarItemStyle: { gap: 2 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "CONDUCIR",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="steering" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <View style={{ alignItems: "center" }}>
+              <MaterialCommunityIcons name="steering" size={size} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="chat"
         options={{
           title: "CHAT",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="radio-handheld" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <View style={{ alignItems: "center" }}>
+              <MaterialCommunityIcons name="radio-handheld" size={size} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="alerts"
         options={{
           title: "ALERTAS",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="alert-decagram" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <View style={{ alignItems: "center" }}>
+              <MaterialCommunityIcons name="alert-decagram" size={size} color={color} />
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "PERFIL",
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="account-circle" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <View style={{ alignItems: "center" }}>
+              <MaterialCommunityIcons name="account-circle" size={size} color={color} />
+            </View>
+          ),
         }}
       />
     </Tabs>

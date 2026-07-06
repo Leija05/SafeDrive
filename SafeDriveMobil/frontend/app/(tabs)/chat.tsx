@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, FlatList, TextInput, ActivityIndicator, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
 import { apiFetch } from "@/src/lib/api";
 import { colors, spacing, radius, MONO } from "@/src/theme";
-import Button from "@/src/components/ui/Button";
 import { useDrive } from "@/src/context/DriveContext";
 
 const QUICK_REPLIES = [
@@ -63,11 +62,19 @@ export default function Chat() {
     return (
       <View style={[styles.bubbleRow, mine ? styles.rowRight : styles.rowLeft]}>
         <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleBase]}>
-          {!mine && <Text style={styles.senderTag}>CENTRAL</Text>}
+          {!mine && (
+            <View style={styles.senderRow}>
+              <View style={styles.senderDot} />
+              <Text style={styles.senderTag}>CENTRAL</Text>
+            </View>
+          )}
           <Text style={styles.bubbleText}>{item.text}</Text>
-          <Text style={styles.bubbleTime}>
-            {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </Text>
+          <View style={styles.bubbleFooter}>
+            <Text style={styles.bubbleTime}>
+              {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </Text>
+            {mine && <MaterialCommunityIcons name="check" size={12} color={colors.textTertiary} />}
+          </View>
         </View>
       </View>
     );
@@ -75,9 +82,14 @@ export default function Chat() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <MaterialCommunityIcons name="radio-handheld" size={20} color={colors.brand} />
-        <Text style={styles.headerTitle}>CHAT SEGURO · CENTRAL</Text>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.headerIconWrap}>
+          <MaterialCommunityIcons name="radio-handheld" size={18} color={colors.brand} />
+        </View>
+        <Text style={styles.headerTitle}>CHAT SEGURO</Text>
+        <View style={styles.headerSub}>
+          <Text style={styles.headerSubText}>CENTRAL</Text>
+        </View>
       </View>
 
       <FlatList
@@ -89,16 +101,24 @@ export default function Chat() {
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>Sin mensajes. Usa un mensaje rápido abajo.</Text>
+            <View style={styles.emptyIconWrap}>
+              <MaterialCommunityIcons name="forum-outline" size={40} color={colors.textTertiary} />
+            </View>
+            <Text style={styles.emptyText}>Sin mensajes aún</Text>
+            <Text style={styles.emptyHint}>Usa un mensaje rápido para comunicarte con central</Text>
           </View>
         }
       />
 
       <View style={[styles.quickArea, { paddingBottom: insets.bottom + spacing.sm }]} testID="quick-reply-panel">
-        <View style={styles.lockBanner}>
-          <MaterialCommunityIcons name={routeLocked ? "keyboard-off" : "keyboard"} size={14} color={routeLocked ? colors.success : colors.brand} />
+        <View style={[styles.lockBanner, routeLocked ? styles.lockBannerActive : styles.lockBannerInactive]}>
+          <MaterialCommunityIcons
+            name={routeLocked ? "keyboard-off" : "keyboard"}
+            size={14}
+            color={routeLocked ? colors.success : colors.brand}
+          />
           <Text style={[styles.lockText, !routeLocked && { color: colors.brand }]}>
-            {routeLocked ? "EN RUTA: SOLO RESPUESTAS PREDETERMINADAS" : "DETENIDO: TEXTO LIBRE HABILITADO"}
+            {routeLocked ? "EN RUTA: SOLO RESPUESTAS RÁPIDAS" : "DETENIDO: TEXTO LIBRE HABILITADO"}
           </Text>
         </View>
         {!routeLocked && (
@@ -109,18 +129,26 @@ export default function Chat() {
               placeholder="Escribe a central..."
               placeholderTextColor={colors.textTertiary}
               style={styles.composerInput}
+              multiline
             />
-            <Button onPress={() => draft.trim() && send(draft.trim(), false)} style={[styles.sendButton, (!draft.trim() || sending) && { opacity: 0.5 }]}>
-              {sending ? <ActivityIndicator color={colors.onBrand} /> : <MaterialCommunityIcons name="send" size={18} color={colors.onBrand} />}
-            </Button>
+            <Pressable
+              onPress={() => draft.trim() && send(draft.trim(), false)}
+              style={[styles.sendButton, (!draft.trim() || sending) && { opacity: 0.5 }]}
+            >
+              {sending ? (
+                <ActivityIndicator color={colors.onBrand} />
+              ) : (
+                <MaterialCommunityIcons name="send" size={18} color={colors.onBrand} />
+              )}
+            </Pressable>
           </View>
         )}
         <View style={styles.grid}>
           {QUICK_REPLIES.map((q) => (
-            <Button key={q.text} onPress={() => send(q.text, true)} style={styles.chip}>
-              <MaterialCommunityIcons name={q.icon as any} size={18} color={colors.onSurface} />
+            <Pressable key={q.text} onPress={() => send(q.text, true)} style={styles.chip}>
+              <MaterialCommunityIcons name={q.icon as any} size={18} color={colors.brand} />
               <Text style={styles.chipText}>{q.text}</Text>
-            </Button>
+            </Pressable>
           ))}
         </View>
       </View>
@@ -132,37 +160,68 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   header: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm, backgroundColor: colors.surfaceSecondary,
+    paddingBottom: spacing.md, backgroundColor: colors.surfaceSecondary,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  headerTitle: { color: colors.onSurface, fontFamily: MONO, fontSize: 13, letterSpacing: 1.5 },
+  headerIconWrap: {
+    width: 32, height: 32, borderRadius: radius.md,
+    backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center",
+  },
+  headerTitle: { color: colors.onSurface, fontFamily: MONO, fontSize: 14, letterSpacing: 2, fontWeight: "700" },
+  headerSub: {
+    marginLeft: "auto", backgroundColor: colors.surfaceTertiary,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2,
+  },
+  headerSubText: { color: colors.brand, fontFamily: MONO, fontSize: 9, letterSpacing: 1, fontWeight: "600" },
   listContent: { padding: spacing.lg, gap: spacing.sm, flexGrow: 1 },
   bubbleRow: { flexDirection: "row" },
   rowRight: { justifyContent: "flex-end" },
   rowLeft: { justifyContent: "flex-start" },
-  bubble: { maxWidth: "82%", borderRadius: radius.lg, padding: spacing.md, borderWidth: 1 },
+  bubble: { maxWidth: "82%", borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, gap: 2 },
   bubbleMine: { backgroundColor: colors.brandSecondary, borderColor: colors.brand },
-  bubbleBase: { backgroundColor: colors.surfaceTertiary, borderColor: colors.border },
-  senderTag: { color: colors.warning, fontFamily: MONO, fontSize: 9, letterSpacing: 1, marginBottom: 2 },
+  bubbleBase: { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+  senderRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 },
+  senderDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.warning },
+  senderTag: { color: colors.warning, fontFamily: MONO, fontSize: 9, letterSpacing: 1, fontWeight: "700" },
   bubbleText: { color: colors.onSurface, fontSize: 14, lineHeight: 19 },
-  bubbleTime: { color: colors.textSecondary, fontFamily: MONO, fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: spacing["3xl"] },
-  emptyText: { color: colors.textTertiary, fontSize: 13 },
+  bubbleFooter: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  bubbleTime: { color: colors.textSecondary, fontFamily: MONO, fontSize: 10 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingTop: spacing["3xl"] },
+  emptyIconWrap: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center", marginBottom: spacing.sm,
+  },
+  emptyText: { color: colors.onSurface, fontSize: 16, fontWeight: "600" },
+  emptyHint: { color: colors.textTertiary, fontSize: 13, textAlign: "center" },
   quickArea: {
     backgroundColor: colors.surfaceSecondary, borderTopWidth: 1, borderTopColor: colors.border,
     paddingHorizontal: spacing.md, paddingTop: spacing.sm,
   },
-  lockBanner: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingBottom: spacing.sm, justifyContent: "center" },
-  lockText: { color: colors.success, fontFamily: MONO, fontSize: 10, letterSpacing: 0.5 },
+  lockBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.xs,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md,
+    justifyContent: "center", marginBottom: spacing.sm,
+  },
+  lockBannerActive: { backgroundColor: colors.successDim },
+  lockBannerInactive: { backgroundColor: colors.brandTertiary },
+  lockText: { color: colors.success, fontFamily: MONO, fontSize: 10, letterSpacing: 0.8, fontWeight: "600" },
   composer: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
-  composerInput: { flex: 1, minHeight: 46, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, color: colors.onSurface, paddingHorizontal: spacing.md },
-  sendButton: { width: 48, borderRadius: radius.md, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+  composerInput: {
+    flex: 1, minHeight: 48, maxHeight: 100,
+    backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.borderStrong,
+    borderRadius: radius.md, color: colors.onSurface, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    fontSize: 14,
+  },
+  sendButton: {
+    width: 48, borderRadius: radius.md, backgroundColor: colors.brand,
+    alignItems: "center", justifyContent: "center",
+  },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: {
     flexBasis: "48%", flexGrow: 1, flexDirection: "row", alignItems: "center", gap: spacing.sm,
     backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.borderStrong,
-    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, minHeight: 56,
+    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, minHeight: 52,
   },
-  chipPressed: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
   chipText: { color: colors.onSurface, fontSize: 14, fontWeight: "600", flex: 1 },
 });

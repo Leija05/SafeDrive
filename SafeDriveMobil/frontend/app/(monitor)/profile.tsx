@@ -11,53 +11,130 @@ export default function MonitorProfile() {
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={{ paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl, paddingHorizontal: spacing.lg }}
+      contentContainerStyle={{
+        paddingTop: insets.top + spacing.lg,
+        paddingBottom: insets.bottom + spacing["3xl"],
+        paddingHorizontal: spacing.lg,
+      }}
+      showsVerticalScrollIndicator={false}
     >
-      <View style={styles.avatarWrap}>
-        <View style={styles.avatar}>
-          <MaterialCommunityIcons name="shield-account" size={40} color={colors.brand} />
+      <View style={styles.profileHeader}>
+        <View style={styles.avatarSection}>
+          <View style={styles.avatar}>
+            <MaterialCommunityIcons name="shield-account" size={36} color={colors.brand} />
+          </View>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleText}>MONITOREO</Text>
+          </View>
         </View>
-        <Text style={styles.name} testID="monitor-profile-name">{user?.name || "Monitorista"}</Text>
+        <Text style={styles.name} testID="monitor-profile-name">
+          {user?.name || "Monitorista"}
+        </Text>
         <Text style={styles.email}>{user?.email}</Text>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>CENTRAL DE MONITOREO</Text>
+      </View>
+
+      <View style={styles.statsRow}>
+        <View style={styles.statCard}>
+          <MaterialCommunityIcons name="truck-fast" size={22} color={colors.brand} />
+          <Text style={styles.statValue}>—</Text>
+          <Text style={styles.statLabel}>Unidades activas</Text>
+        </View>
+        <View style={styles.statCard}>
+          <MaterialCommunityIcons name="account-multiple" size={22} color={colors.success} />
+          <Text style={styles.statValue}>—</Text>
+          <Text style={styles.statLabel}>Conductores</Text>
         </View>
       </View>
 
       <View style={styles.infoBox}>
-        <MaterialCommunityIcons name="map-marker-path" size={16} color={colors.brand} />
+        <View style={styles.infoIconWrap}>
+          <MaterialCommunityIcons name="map-marker-path" size={18} color={colors.brand} />
+        </View>
         <Text style={styles.infoText}>
-          Desde aquí asignas rutas por unidad (catálogo o personalizada), supervisas la flota en tiempo real y respondes el chat de los conductores. Todo se guarda en la misma base de datos.
+          Desde aquí asignas rutas por unidad (catálogo o personalizada), supervisas la flota en tiempo real y
+          respondes el chat de los conductores.
         </Text>
       </View>
 
-      <Pressable testID="logout-button" onPress={logout} style={styles.logoutBtn}>
-        <MaterialCommunityIcons name="logout" size={20} color={colors.error} />
-        <Text style={styles.logoutText}>CERRAR SESIÓN</Text>
-      </Pressable>
+      <View style={styles.actionsSection}>
+        <Pressable testID="logout-button" onPress={logout} style={styles.logoutBtn}>
+          <MaterialCommunityIcons name="logout" size={20} color={colors.error} />
+          <Text style={styles.logoutText}>CERRAR SESIÓN</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
-  avatarWrap: { alignItems: "center", gap: spacing.xs, marginBottom: spacing.xl },
+  profileHeader: { alignItems: "center", gap: spacing.xs, marginBottom: spacing["2xl"] },
+  avatarSection: { position: "relative", marginBottom: spacing.md },
   avatar: {
-    width: 80, height: 80, borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm,
+    width: 88,
+    height: 88,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 2,
+    borderColor: colors.brandTertiary,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  name: { color: colors.onSurface, fontSize: 22, fontWeight: "800" },
+  roleBadge: {
+    position: "absolute",
+    bottom: -4,
+    alignSelf: "center",
+    backgroundColor: colors.brand,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  roleText: { color: colors.onBrand, fontFamily: MONO, fontSize: 8, letterSpacing: 1.5, fontWeight: "700" },
+  name: { color: colors.onSurface, fontSize: 24, fontWeight: "800" },
   email: { color: colors.textSecondary, fontFamily: MONO, fontSize: 13 },
-  roleBadge: { borderWidth: 1, borderColor: colors.brand, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3, marginTop: spacing.sm },
-  roleText: { color: colors.brand, fontFamily: MONO, fontSize: 10, letterSpacing: 1.5 },
-  infoBox: {
-    flexDirection: "row", gap: spacing.sm, backgroundColor: "rgba(0,122,255,0.08)", borderWidth: 1,
-    borderColor: colors.brandTertiary, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md,
+  statsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xl },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    alignItems: "center",
+    gap: spacing.xs,
   },
-  infoText: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, flex: 1 },
+  statValue: { color: colors.onSurface, fontSize: 28, fontWeight: "800", fontFamily: MONO },
+  statLabel: { color: colors.textTertiary, fontSize: 11, letterSpacing: 0.5 },
+  infoBox: {
+    flexDirection: "row",
+    gap: spacing.md,
+    backgroundColor: colors.brandTertiary,
+    borderWidth: 1,
+    borderColor: colors.brandTertiary,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    alignItems: "flex-start",
+  },
+  infoIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.md,
+    backgroundColor: colors.brandGlow,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoText: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, flex: 1 },
+  actionsSection: { marginTop: spacing["2xl"] },
   logoutBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
-    borderWidth: 1, borderColor: colors.error, borderRadius: radius.md, paddingVertical: spacing.md, marginTop: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    minHeight: 52,
   },
   logoutText: { color: colors.error, fontWeight: "800", fontSize: 14, letterSpacing: 1 },
 });

@@ -60,12 +60,20 @@ export default function MonitorChat() {
     const base = item.sender === "base";
     return (
       <View style={[styles.bubbleRow, base ? styles.rowRight : styles.rowLeft]}>
-        <View style={[styles.bubble, base ? styles.bubbleBase : styles.bubbleDriver]}>
-          {!base && <Text style={styles.senderTag}>{active?.name || "UNIDAD"}</Text>}
+        <View style={[styles.bubble, base ? styles.bubbleBase : styles.bubbleUnit]}>
+          {!base && (
+            <View style={styles.senderRow}>
+              <View style={styles.senderDot} />
+              <Text style={styles.senderTag}>{active?.name || "UNIDAD"}</Text>
+            </View>
+          )}
           <Text style={styles.bubbleText}>{item.text}</Text>
-          <Text style={styles.bubbleTime}>
-            {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </Text>
+          <View style={styles.bubbleFooter}>
+            <Text style={styles.bubbleTime}>
+              {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </Text>
+            {base && <MaterialCommunityIcons name="check" size={12} color={colors.textTertiary} />}
+          </View>
         </View>
       </View>
     );
@@ -73,8 +81,10 @@ export default function MonitorChat() {
 
   return (
     <View style={styles.root}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <MaterialCommunityIcons name="forum" size={20} color={colors.brand} />
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.headerIconWrap}>
+          <MaterialCommunityIcons name="forum" size={18} color={colors.brand} />
+        </View>
         <Text style={styles.headerTitle}>CHAT CON UNIDADES</Text>
       </View>
 
@@ -103,7 +113,11 @@ export default function MonitorChat() {
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Sin mensajes con esta unidad.</Text></View>}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>Sin mensajes con esta unidad.</Text>
+          </View>
+        }
       />
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -139,10 +153,14 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   header: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm, backgroundColor: colors.surfaceSecondary,
+    paddingBottom: spacing.md, backgroundColor: colors.surfaceSecondary,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  headerTitle: { color: colors.onSurface, fontFamily: MONO, fontSize: 13, letterSpacing: 1.5 },
+  headerIconWrap: {
+    width: 32, height: 32, borderRadius: radius.md,
+    backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center",
+  },
+  headerTitle: { color: colors.onSurface, fontFamily: MONO, fontSize: 14, letterSpacing: 2, fontWeight: "700" },
   unitTabs: { maxHeight: 56, backgroundColor: colors.surfaceSecondary, borderBottomWidth: 1, borderBottomColor: colors.border },
   unitTabsContent: { gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, alignItems: "center" },
   unitChip: {
@@ -158,21 +176,27 @@ const styles = StyleSheet.create({
   rowLeft: { justifyContent: "flex-start" },
   bubble: { maxWidth: "82%", borderRadius: radius.lg, padding: spacing.md, borderWidth: 1 },
   bubbleBase: { backgroundColor: colors.brandSecondary, borderColor: colors.brand },
-  bubbleDriver: { backgroundColor: colors.surfaceTertiary, borderColor: colors.border },
-  senderTag: { color: colors.warning, fontFamily: MONO, fontSize: 9, letterSpacing: 1, marginBottom: 2 },
+  bubbleUnit: { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+  senderRow: { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 },
+  senderDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.warning },
+  senderTag: { color: colors.warning, fontFamily: MONO, fontSize: 9, letterSpacing: 1, fontWeight: "700" },
   bubbleText: { color: colors.onSurface, fontSize: 14, lineHeight: 19 },
-  bubbleTime: { color: colors.textSecondary, fontFamily: MONO, fontSize: 10, marginTop: 4, alignSelf: "flex-end" },
+  bubbleFooter: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  bubbleTime: { color: colors.textSecondary, fontFamily: MONO, fontSize: 10 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: spacing["3xl"] },
   emptyText: { color: colors.textTertiary, fontSize: 13 },
   inputArea: { backgroundColor: colors.surfaceSecondary, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm },
   quickRow: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
-  quickChip: { backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.pill, paddingHorizontal: spacing.md, height: 34, justifyContent: "center", flexShrink: 0 },
+  quickChip: {
+    backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.borderStrong,
+    borderRadius: radius.pill, paddingHorizontal: spacing.md, height: 34, justifyContent: "center", flexShrink: 0,
+  },
   quickChipText: { color: colors.onSurface, fontSize: 12, fontWeight: "600" },
   composer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.md },
   input: {
     flex: 1, backgroundColor: colors.surfaceTertiary, borderWidth: 1, borderColor: colors.border,
     borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.onSurface,
-    fontSize: 15, maxHeight: 120, minHeight: 44,
+    fontSize: 15, maxHeight: 120, minHeight: 46,
   },
-  sendBtn: { backgroundColor: colors.brand, borderRadius: radius.md, width: 48, height: 44, alignItems: "center", justifyContent: "center" },
+  sendBtn: { backgroundColor: colors.brand, borderRadius: radius.md, width: 48, height: 46, alignItems: "center", justifyContent: "center" },
 });

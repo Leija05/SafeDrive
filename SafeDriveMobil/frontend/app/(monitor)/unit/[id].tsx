@@ -13,6 +13,16 @@ import MapPointPicker from "@/src/components/MapPointPicker";
 
 type RouteDef = { id: string; name: string; points: number[][] };
 
+function InfoTile({ label, value, icon, color }: { label: string; value: string; icon?: any; color?: string }) {
+  return (
+    <View style={[styles.tile, color && { borderLeftColor: color, borderLeftWidth: 3 }]}>
+      {icon && <MaterialCommunityIcons name={icon} size={16} color={color || colors.textTertiary} />}
+      <Text style={styles.tileLabel}>{label}</Text>
+      <Text style={styles.tileValue}>{value}</Text>
+    </View>
+  );
+}
+
 export default function UnitDetail() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -32,12 +42,12 @@ export default function UnitDetail() {
     try {
       const u = await apiFetch(`/units/${id}`);
       setUnit(u);
-    } catch {}
+    } catch { }
   }, [id]);
 
   useEffect(() => {
     load();
-    apiFetch<{ routes: RouteDef[] }>("/routes").then((r) => setRoutes(r.routes)).catch(() => {});
+    apiFetch<{ routes: RouteDef[] }>("/routes").then((r) => setRoutes(r.routes)).catch(() => { });
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, [load]);
@@ -68,11 +78,15 @@ export default function UnitDetail() {
     }
     setAssigning("shortest");
     try {
-      const u = await apiFetch(`/units/${id}/custom-route`, {
+      const parsePoint = (value: string) => {
+        const [lat, lng] = value.split(",").map(Number);
+        return [lat, lng];
+      };
+      const u = await apiFetch(`/units/${id}/route`, {
         method: "POST",
         body: JSON.stringify({
-          origin,
-          destination,
+          origin: parsePoint(origin),
+          destination: parsePoint(destination),
           tolerance_m: Number(routeForm.tolerance) || 400,
           name: "Ruta personalizada origen-destino",
         }),
@@ -86,11 +100,10 @@ export default function UnitDetail() {
     setAssigning(null);
   };
 
-
   if (!unit) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={colors.brand} />
+        <ActivityIndicator color={colors.brand} size="large" />
         <Text style={styles.loadingText}>Cargando unidad...</Text>
       </View>
     );
@@ -103,47 +116,52 @@ export default function UnitDetail() {
 
   return (
     <KeyboardAvoidingView style={styles.root} behavior={keyboardBehavior}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable testID="back-button" onPress={() => router.back()} hitSlop={10}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <Pressable testID="back-button" onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.headerTitle}>{unit.name}</Text>
         <View style={[styles.statusBadge, { borderColor: color }]}>
+          <View style={[styles.badgeDot, { backgroundColor: color }]} />
           <Text style={[styles.statusBadgeText, { color }]}>{STATUS_LABELS[unit.status] || unit.status}</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing["3xl"] }} keyboardShouldPersistTaps="handled">
         <View style={styles.mapBox}>
           <RouteMap route={unit.assigned_route || []} location={location} deviation={deviated} />
         </View>
 
         <View style={styles.section}>
-          <View style={styles.infoRow}>
-            <Info label="CONDUCTOR" value={unit.driver_name} />
-            <Info label="TELÉFONO" value={unit.driver_phone || "—"} />
+          <Text style={styles.sectionTitle}>DATOS DE LA UNIDAD</Text>
+          <View style={styles.tileGrid}>
+            <InfoTile icon="account" label="CONDUCTOR" value={unit.driver_name} />
+            <InfoTile icon="phone" label="TELÉFONO" value={unit.driver_phone || "—"} color={unit.driver_phone ? colors.success : undefined} />
+            <InfoTile icon="card-text" label="PLACAS" value={unit.plate} />
+            <InfoTile icon="ruler" label="TOLERANCIA" value={`${Math.round(unit.route_tolerance_m || 400)} m`} />
+            <InfoTile icon="speedometer" label="VELOCIDAD" value={`${Math.round(unit.speed)} km/h`} />
+            <InfoTile icon="map-marker-distance" label="DESVÍO" value={`${Math.round(unit.deviation_m)} m`} color={deviated ? colors.error : undefined} />
           </View>
-          <View style={styles.infoRow}>
-            <Info label="PLACAS" value={unit.plate} />
-            <Info label="TOLERANCIA" value={`${Math.round(unit.route_tolerance_m || 400)} m`} />
-          </View>
-          <View style={styles.infoRow}>
-            <Info label="VELOCIDAD" value={`${Math.round(unit.speed)} km/h`} />
-            <Info label="DESVÍO" value={`${Math.round(unit.deviation_m)} m`} />
-          </View>
+
           {!!unit.driver_phone && (
             <Pressable style={styles.callBtn} onPress={() => Linking.openURL(`tel:${unit.driver_phone}`)}>
-              <MaterialCommunityIcons name="phone" size={16} color={colors.onBrand} />
+              <MaterialCommunityIcons name="phone" size={18} color={colors.onBrand} />
               <Text style={styles.callText}>LLAMAR AL CONDUCTOR</Text>
             </Pressable>
           )}
+
           <View style={styles.currentRoute}>
-            <MaterialCommunityIcons name="map-marker-path" size={16} color={colors.brand} />
-            <Text style={styles.currentRouteText}>{unit.route_name || "Sin ruta asignada"}</Text>
+            <View style={styles.routeIconWrap}>
+              <MaterialCommunityIcons name="map-marker-path" size={18} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.routeLabel}>Ruta asignada</Text>
+              <Text style={styles.routeValue}>{unit.route_name || "Sin ruta asignada"}</Text>
+            </View>
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>ASIGNAR RUTA PREDEFINIDA</Text>
+        <Text style={styles.sectionTitleOutside}>RUTAS PREDEFINIDAS</Text>
         <View style={styles.routesWrap}>
           {routes.map((r) => {
             const active = unit.route_name === r.name;
@@ -155,14 +173,12 @@ export default function UnitDetail() {
                 disabled={!!assigning}
                 style={[styles.routeCard, active && styles.routeCardActive]}
               >
-                <MaterialCommunityIcons
-                  name={active ? "check-circle" : "circle-outline"}
-                  size={20}
-                  color={active ? colors.success : colors.textTertiary}
-                />
+                <View style={[styles.radioOuter, active && styles.radioOuterActive]}>
+                  {active && <View style={styles.radioInner} />}
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.routeName}>{r.name}</Text>
-                  <Text style={styles.routePoints}>{r.points.length} puntos</Text>
+                  <Text style={styles.routePoints}>{r.points.length} puntos de ruta</Text>
                 </View>
                 {assigning === r.id && <ActivityIndicator color={colors.brand} size="small" />}
               </Pressable>
@@ -170,34 +186,64 @@ export default function UnitDetail() {
           })}
         </View>
 
-
-        <Text style={styles.sectionTitle}>RUTA PERSONALIZADA</Text>
+        <Text style={styles.sectionTitleOutside}>RUTA PERSONALIZADA</Text>
         <View style={styles.manualBox}>
           <Pressable onPress={() => setCustomModal(true)} style={styles.manualBtn}>
+            <MaterialCommunityIcons name="plus-circle" size={18} color={colors.onBrand} />
             <Text style={styles.manualBtnText}>AGREGAR RUTA PERSONALIZADA</Text>
           </Pressable>
-          <Text style={styles.helperText}>Ingresa dirección de origen y destino o selecciona puntos desde el mapa en una ventana emergente.</Text>
+          <Text style={styles.helperText}>
+            Ingresa dirección de origen y destino o selecciona puntos desde el mapa.
+          </Text>
         </View>
-
       </ScrollView>
-
 
       <Modal visible={customModal} transparent animationType="slide" onRequestClose={() => setCustomModal(false)}>
         <KeyboardAvoidingView style={styles.modalShade} behavior={keyboardBehavior}>
           <View style={[styles.modalCard, { maxHeight: Platform.OS === "web" ? "88%" : "92%" }]}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>AGREGAR RUTA PERSONALIZADA</Text>
+              <Text style={styles.modalTitle}>RUTA PERSONALIZADA</Text>
               <Pressable onPress={() => setCustomModal(false)}>
                 <MaterialCommunityIcons name="close" size={24} color={colors.onSurface} />
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={[styles.modalBody, { paddingBottom: insets.bottom + spacing.xl }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={styles.helperText}>Escribe direcciones como "Arquitectos 7020, col. Solidaridad" o mueve el mapa: el pin central marca la ubicación seleccionada.</Text>
-              <TextInput value={routeForm.start} onChangeText={(start) => setRouteForm((f) => ({ ...f, start }))} placeholder="Dirección de origen" placeholderTextColor={colors.textTertiary} style={styles.input} />
-              <TextInput value={routeForm.destination} onChangeText={(destination) => setRouteForm((f) => ({ ...f, destination }))} placeholder="Dirección de destino" placeholderTextColor={colors.textTertiary} style={styles.input} />
+            <ScrollView
+              contentContainerStyle={[styles.modalBody, { paddingBottom: insets.bottom + spacing.xl }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.helperText}>
+                Escribe direcciones o mueve el mapa. El pin central marca la ubicación seleccionada.
+              </Text>
+              <TextInput
+                value={routeForm.start}
+                onChangeText={(start) => setRouteForm((f) => ({ ...f, start }))}
+                placeholder="Dirección de origen"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.input}
+              />
+              <TextInput
+                value={routeForm.destination}
+                onChangeText={(destination) => setRouteForm((f) => ({ ...f, destination }))}
+                placeholder="Dirección de destino"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.input}
+              />
               <View style={styles.modeRow}>
-                <Pressable onPress={() => setPickMode("origin")} style={[styles.modeBtn, pickMode === "origin" && styles.modeBtnActive]}><Text style={[styles.modeText, pickMode === "origin" && styles.modeTextActive]}>ORIGEN</Text></Pressable>
-                <Pressable onPress={() => setPickMode("destination")} style={[styles.modeBtn, pickMode === "destination" && styles.modeBtnActive]}><Text style={[styles.modeText, pickMode === "destination" && styles.modeTextActive]}>DESTINO</Text></Pressable>
+                <Pressable
+                  onPress={() => setPickMode("origin")}
+                  style={[styles.modeBtn, pickMode === "origin" && styles.modeBtnActive]}
+                >
+                  <MaterialCommunityIcons name="map-marker" size={16} color={pickMode === "origin" ? colors.brand : colors.textTertiary} />
+                  <Text style={[styles.modeText, pickMode === "origin" && styles.modeTextActive]}>ORIGEN</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setPickMode("destination")}
+                  style={[styles.modeBtn, pickMode === "destination" && styles.modeBtnActive]}
+                >
+                  <MaterialCommunityIcons name="map-marker-check" size={16} color={pickMode === "destination" ? colors.brand : colors.textTertiary} />
+                  <Text style={[styles.modeText, pickMode === "destination" && styles.modeTextActive]}>DESTINO</Text>
+                </Pressable>
               </View>
               <MapPointPicker
                 initial={location}
@@ -206,9 +252,20 @@ export default function UnitDetail() {
                   setRouteForm((f) => pickMode === "origin" ? { ...f, start: value } : { ...f, destination: value });
                 }}
               />
-              <TextInput value={routeForm.tolerance} onChangeText={(tolerance) => setRouteForm((f) => ({ ...f, tolerance }))} placeholder="Tolerancia en metros" placeholderTextColor={colors.textTertiary} keyboardType="numeric" style={styles.input} />
+              <TextInput
+                value={routeForm.tolerance}
+                onChangeText={(tolerance) => setRouteForm((f) => ({ ...f, tolerance }))}
+                placeholder="Tolerancia en metros"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                style={styles.input}
+              />
               <Pressable onPress={assignShortest} disabled={!!assigning} style={styles.manualBtn}>
-                {assigning === "shortest" ? <ActivityIndicator color={colors.onBrand} /> : <Text style={styles.manualBtnText}>GUARDAR RUTA PERSONALIZADA</Text>}
+                {assigning === "shortest" ? (
+                  <ActivityIndicator color={colors.onBrand} />
+                ) : (
+                  <Text style={styles.manualBtnText}>GUARDAR RUTA PERSONALIZADA</Text>
+                )}
               </Pressable>
             </ScrollView>
           </View>
@@ -217,6 +274,7 @@ export default function UnitDetail() {
 
       {!!toast && (
         <View style={[styles.toast, { bottom: insets.bottom + spacing.lg }]} testID="toast">
+          <MaterialCommunityIcons name="check-circle" size={16} color={colors.success} />
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       )}
@@ -224,70 +282,104 @@ export default function UnitDetail() {
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.info}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   loading: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", gap: spacing.md },
-  loadingText: { color: colors.textSecondary, fontFamily: MONO, fontSize: 12 },
+  loadingText: { color: colors.textSecondary, fontFamily: MONO, fontSize: 12, letterSpacing: 1 },
   header: {
     flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm, backgroundColor: colors.surfaceSecondary,
+    paddingBottom: spacing.md, backgroundColor: colors.surfaceSecondary,
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
+  backBtn: { width: 36, height: 36, borderRadius: radius.md, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: colors.onSurface, fontFamily: MONO, fontSize: 18, fontWeight: "700", letterSpacing: 1, flex: 1 },
-  statusBadge: { borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 3 },
-  statusBadgeText: { fontFamily: MONO, fontSize: 10, letterSpacing: 1 },
+  statusBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 3,
+  },
+  badgeDot: { width: 6, height: 6, borderRadius: 3 },
+  statusBadgeText: { fontFamily: MONO, fontSize: 9, letterSpacing: 1, fontWeight: "700" },
   mapBox: { height: 240, backgroundColor: "#0a0a0a", overflow: "hidden" },
-  section: { padding: spacing.lg, gap: spacing.sm },
-  infoRow: { flexDirection: "row", gap: spacing.sm },
-  info: {
-    flex: 1, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border,
+  section: { padding: spacing.lg, gap: spacing.md },
+  sectionTitle: { color: colors.textTertiary, fontFamily: MONO, fontSize: 10, letterSpacing: 1.5, marginBottom: spacing.sm },
+  sectionTitleOutside: {
+    color: colors.textTertiary, fontFamily: MONO, fontSize: 10, letterSpacing: 1.5,
+    paddingHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: spacing.sm,
+  },
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  tile: {
+    width: "48%", flexGrow: 1, backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    padding: spacing.md, gap: 2, minWidth: 140,
+  },
+  tileLabel: { color: colors.textTertiary, fontFamily: MONO, fontSize: 9, letterSpacing: 1 },
+  tileValue: { color: colors.onSurface, fontSize: 15, fontWeight: "600", marginTop: 1 },
+  callBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    backgroundColor: colors.success, borderRadius: radius.md, paddingVertical: spacing.md, minHeight: 50,
+  },
+  callText: { color: colors.onBrand, fontWeight: "800", fontSize: 13, letterSpacing: 1.5 },
+  currentRoute: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandTertiary,
     borderRadius: radius.md, padding: spacing.md,
   },
-  infoLabel: { color: colors.textTertiary, fontFamily: MONO, fontSize: 10, letterSpacing: 1 },
-  infoValue: { color: colors.onSurface, fontSize: 15, fontWeight: "600", marginTop: 2 },
-  currentRoute: {
-    flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(0,122,255,0.08)",
-    borderWidth: 1, borderColor: colors.brandTertiary, borderRadius: radius.md, padding: spacing.md,
+  routeIconWrap: {
+    width: 40, height: 40, borderRadius: radius.md,
+    backgroundColor: colors.brandGlow, alignItems: "center", justifyContent: "center",
   },
-  currentRouteText: { color: colors.onSurface, fontSize: 13, flex: 1 },
-  sectionTitle: { color: colors.textTertiary, fontFamily: MONO, fontSize: 11, letterSpacing: 1.5, paddingHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.sm },
+  routeLabel: { color: colors.textTertiary, fontSize: 10, letterSpacing: 0.5 },
+  routeValue: { color: colors.onSurface, fontSize: 14, fontWeight: "600", marginTop: 1 },
   routesWrap: { paddingHorizontal: spacing.lg, gap: spacing.sm },
   routeCard: {
-    flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md,
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, padding: spacing.md,
   },
   routeCardActive: { borderColor: colors.success },
+  radioOuter: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+    borderColor: colors.textTertiary, alignItems: "center", justifyContent: "center",
+  },
+  radioOuterActive: { borderColor: colors.success },
+  radioInner: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.success },
   routeName: { color: colors.onSurface, fontSize: 14, fontWeight: "600" },
   routePoints: { color: colors.textTertiary, fontFamily: MONO, fontSize: 11, marginTop: 1 },
   manualBox: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-  input: { backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, color: colors.onSurface, fontSize: 13 },
-  callBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.success, borderRadius: radius.md, paddingVertical: spacing.md },
-  callText: { color: colors.onBrand, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
+  input: {
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, padding: spacing.md, color: colors.onSurface, fontSize: 14,
+  },
   helperText: { color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
   modalShade: { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: colors.surfaceSecondary, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
-  modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  modalCard: {
+    backgroundColor: colors.surfaceSecondary, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  modalHead: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
   modalTitle: { color: colors.onSurface, fontFamily: MONO, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
-  modalBody: { padding: spacing.lg, gap: spacing.sm },
+  modalBody: { padding: spacing.lg, gap: spacing.md },
   modeRow: { flexDirection: "row", gap: spacing.sm },
-  modeBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: "center" },
+  modeBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingVertical: spacing.sm,
+  },
   modeBtnActive: { borderColor: colors.brand, backgroundColor: colors.brandTertiary },
   modeText: { color: colors.textSecondary, fontFamily: MONO, fontSize: 11, fontWeight: "800" },
   modeTextActive: { color: colors.brand },
-  manualBtn: { backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center", minHeight: 48, justifyContent: "center" },
+  manualBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm,
+    backgroundColor: colors.brand, borderRadius: radius.md, paddingVertical: spacing.md, minHeight: 50,
+  },
   manualBtnText: { color: colors.onBrand, fontWeight: "800", fontSize: 13, letterSpacing: 1 },
   toast: {
-    position: "absolute", left: spacing.lg, right: spacing.lg, backgroundColor: colors.surfaceInverse,
+    position: "absolute", left: spacing.lg, right: spacing.lg,
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.borderStrong,
     borderRadius: radius.md, padding: spacing.md,
   },
-  toastText: { color: colors.onSurfaceInverse, fontSize: 13, fontWeight: "600", textAlign: "center" },
+  toastText: { color: colors.onSurface, fontSize: 13, fontWeight: "600", textAlign: "center", flex: 1 },
 });

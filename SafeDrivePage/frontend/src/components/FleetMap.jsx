@@ -1,6 +1,11 @@
 import { MapContainer, TileLayer, Polyline, Circle, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { useEffect, useRef, useState } from "react";
+import { Crosshair } from "@phosphor-icons/react";
+
+const STATUS_COLOR_MAP = {
+  en_ruta: "#00E676", detenido: "#FFB800", alerta: "#FF2A2A", offline: "#52525B", cruce_fiscal: "#007AFF",
+};
 
 const DRIVER_PALETTE = ["#00E676", "#007AFF", "#FFB800", "#FF2A2A", "#A855F7", "#14B8A6", "#F97316", "#EC4899", "#22D3EE", "#F43F5E", "#84CC16", "#E879F9"];
 
@@ -22,7 +27,7 @@ function unitIcon(unit) {
   const color = driverColor(unit);
   const critical = unit.status === "alerta";
   const ring = critical
-    ? `<span class="radar-ping" style="position:absolute;inset:-8px;border-radius:50%;background:${color};opacity:.5"></span>`
+    ? `<span class="radar-ping" style="position:absolute;inset:-10px;border-radius:50%;background:${color};opacity:0.6"></span>`
     : "";
   return L.divIcon({
     className: "",
@@ -35,9 +40,9 @@ function unitIcon(unit) {
 function pointIcon(label, color) {
   return L.divIcon({
     className: "",
-    html: `<div style="background:${color};color:#000;border:2px solid #fff;border-radius:999px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;box-shadow:0 0 16px ${color}88">${label}</div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    html: `<div style="background:${color};color:#000;border:2px solid #fff;border-radius:999px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;box-shadow:0 0 20px ${color}99">${label}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
   });
 }
 
@@ -109,7 +114,9 @@ export function RoutePickerMap({ points = [], color = "#00E676", onChange }) {
       {points.map((p, i) => (
         <Marker key={`${p[0]}-${p[1]}-${i}`} position={p} icon={pointIcon(i === 0 ? "O" : "D", color)} />
       ))}
-      {points.length === 2 && <Polyline positions={points} pathOptions={{ color, weight: 5, opacity: 0.85 }} />}
+      {points.length === 2 && (
+        <Polyline positions={points} pathOptions={{ color, weight: 5, opacity: 0.85, dashArray: "10 6" }} />
+      )}
     </MapContainer>
   );
 }
@@ -119,48 +126,61 @@ export default function FleetMap({ units = [], route, selectedId, onSelect }) {
   const [focusRequest, setFocusRequest] = useState(0);
   const selectedUnit = units.find((u) => u.id === selectedId) || null;
   const selectedRoute = selectedUnit ? routeFor(selectedUnit, route) : null;
+  const onlineCount = units.filter((u) => u.online).length;
   return (
     <div className="relative w-full h-full">
-    {selectedId && (
-      <button type="button" onClick={() => setFocusRequest((v) => v + 1)} className="absolute right-3 top-3 z-[600] bg-white text-black text-xs font-bold px-3 py-2 rounded-md shadow-lg hover:bg-zinc-200">Centrar conductor</button>
-    )}
-    <MapContainer center={center} zoom={8} className="w-full h-full" style={{ background: "#0a0a0a" }} zoomControl={true}>
-      <TileLayer className="dark-tiles" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-      <MapCamera units={units} selectedId={selectedId} focusRequest={focusRequest} />
-      {units.map((u) => {
-        const unitRoute = routeFor(u, route);
-        if (!unitRoute?.corridor) return null;
-        return (
-          <Polyline
-            key={`route-${u.id}`}
-            positions={unitRoute.corridor}
-            pathOptions={{ color: driverColor(u), weight: selectedId === u.id ? 6 : 3, opacity: selectedId && selectedId !== u.id ? 0.28 : 0.78 }}
-          />
-        );
-      })}
-      {selectedRoute?.corridor && selectedRoute?.tolerance_m && (
-        <Polyline positions={selectedRoute.corridor} pathOptions={{ color: "#ffffff", weight: Math.max(8, selectedRoute.tolerance_m / 55), opacity: 0.12 }} />
+      <div className="absolute left-3 bottom-3 z-[600] flex gap-2">
+        <div className="bg-black/70 backdrop-blur-sm text-[10px] font-tel px-2.5 py-1 rounded-lg border border-white/10 text-zinc-400">
+          {onlineCount}/{units.length} online
+        </div>
+      </div>
+      {selectedId && (
+        <button type="button" onClick={() => setFocusRequest((v) => v + 1)}
+          className="absolute right-3 top-3 z-[600] bg-white/90 hover:bg-white text-black text-xs font-bold px-3 py-2 rounded-lg shadow-lg transition-all flex items-center gap-1.5">
+          <Crosshair size={14} /> Centrar
+        </button>
       )}
-      {selectedRoute?.bridges?.map((b, i) => (
-        <Circle key={`b${i}`} center={[b.lat, b.lng]} radius={b.radius_m} pathOptions={{ color: "#007AFF", weight: 1, fillColor: "#007AFF", fillOpacity: 0.12 }} />
-      ))}
-      {selectedRoute?.dead_zones?.map((d, i) => (
-        <Circle key={`d${i}`} center={[d.lat, d.lng]} radius={d.radius_m} pathOptions={{ color: "#FFB800", weight: 1, dashArray: "6 6", fillColor: "#FFB800", fillOpacity: 0.06 }} />
-      ))}
-      {units.map((u) => (
-        <Marker key={u.id} position={[u.lat, u.lng]} icon={unitIcon(u)} eventHandlers={{ click: () => onSelect && onSelect(u.id) }}>
-          <Popup>
-            <div style={{ fontFamily: "monospace", fontSize: 12 }}>
-              <b>{u.name}</b> · {u.driver_name}<br />
-              Ruta: <span style={{ color: driverColor(u) }}>{driverColor(u)}</span><br />
-              {u.speed?.toFixed(0)} km/h · {u.status}<br />
-              Tolerancia: {routeFor(u, route)?.tolerance_m || 0}m<br />
-              {u.lat.toFixed(4)}, {u.lng.toFixed(4)}
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </MapContainer>
+      <MapContainer center={center} zoom={8} className="w-full h-full" style={{ background: "#0a0a0a" }} zoomControl={true}>
+        <TileLayer className="dark-tiles" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
+        <MapCamera units={units} selectedId={selectedId} focusRequest={focusRequest} />
+        {units.map((u) => {
+          const unitRoute = routeFor(u, route);
+          if (!unitRoute?.corridor) return null;
+          return (
+            <Polyline
+              key={`route-${u.id}`}
+              positions={unitRoute.corridor}
+              pathOptions={{ color: driverColor(u), weight: selectedId === u.id ? 6 : 3, opacity: selectedId && selectedId !== u.id ? 0.28 : 0.78 }}
+            />
+          );
+        })}
+        {selectedRoute?.corridor && selectedRoute?.tolerance_m && (
+          <Polyline positions={selectedRoute.corridor} pathOptions={{ color: "#ffffff", weight: Math.max(8, selectedRoute.tolerance_m / 55), opacity: 0.1 }} />
+        )}
+        {selectedRoute?.bridges?.map((b, i) => (
+          <Circle key={`b${i}`} center={[b.lat, b.lng]} radius={b.radius_m} pathOptions={{ color: "#007AFF", weight: 1, fillColor: "#007AFF", fillOpacity: 0.12 }} />
+        ))}
+        {selectedRoute?.dead_zones?.map((d, i) => (
+          <Circle key={`d${i}`} center={[d.lat, d.lng]} radius={d.radius_m} pathOptions={{ color: "#FFB800", weight: 1, dashArray: "6 6", fillColor: "#FFB800", fillOpacity: 0.06 }} />
+        ))}
+        {units.map((u) => (
+          <Marker key={u.id} position={[u.lat, u.lng]} icon={unitIcon(u)} eventHandlers={{ click: () => onSelect && onSelect(u.id) }}>
+            <Popup>
+              <div className="font-mono text-xs leading-relaxed" style={{ minWidth: 160 }}>
+                <div className="font-bold text-sm mb-1" style={{ color: driverColor(u) }}>{u.name}</div>
+                <div className="text-zinc-600">{u.driver_name || "—"}</div>
+                <div className="border-t border-zinc-200 my-1.5" />
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <span>{u.speed?.toFixed(0)} km/h</span>
+                  <span style={{ color: STATUS_COLOR_MAP[u.status] || "#000" }}>{u.status}</span>
+                  <span className="col-span-2">{u.lat?.toFixed(4)}, {u.lng?.toFixed(4)}</span>
+                  <span className="col-span-2">tol. {routeFor(u, route)?.tolerance_m || 0}m</span>
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
     </div>
   );
 }

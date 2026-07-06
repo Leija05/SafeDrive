@@ -1,5 +1,5 @@
 """JWT, password hashing, and authentication utilities."""
-import jwt
+from jose import jwt
 import bcrypt
 from datetime import datetime, timezone, timedelta
 from fastapi import HTTPException, Request, Depends

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import CORS_ORIGINS, LOG_LEVEL
 from app.core.database import connect_to_mongo, close_mongo_connection
@@ -17,6 +18,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# --- Security Headers Middleware ---
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "0"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
 # Create FastAPI app
 app = FastAPI(
     title="SafeDrive GPS Unified Backend",
@@ -26,34 +40,27 @@ app = FastAPI(
 
 # --- Middleware ---
 
+app.add_middleware(SecurityHeadersMiddleware)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=CORS_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 # --- Exception Handlers ---
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Handle validation errors with detail."""
-    try:
-        body = await request.body()
-    except:
-        body = b""
-    
+    """Handle validation errors without leaking request body."""
     logger.error(f"[422] Validation error: {exc.errors()}")
-    logger.error(f"[PAYLOAD] Request body: {body.decode(errors='ignore')}")
     
     return JSONResponse(
         status_code=422,
-        content={
-            "detail": exc.errors(),
-            "body": body.decode(errors='ignore')
-        },
+        content={"detail": exc.errors()},
     )
 
 # --- Startup / Shutdown ---

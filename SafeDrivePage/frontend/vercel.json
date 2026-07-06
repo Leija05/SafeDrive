@@ -2,7 +2,6 @@
   "buildCommand": "craco build",
   "outputDirectory": "build",
   "devCommand": "craco start",
-  "framework": "create-react-app",
   "rewrites": [
     {
       "source": "/(.*)",

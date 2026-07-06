@@ -30,8 +30,9 @@ export const API = `${BACKEND_URL.replace(/\/$/, "")}/api`;
 
 export function getWsUrl() {
   const token = localStorage.getItem("sd_token");
+  if (!token) return null;
   const url = new URL(`${BACKEND_URL.replace(/^http/, "ws")}/api/ws`);
-  if (token) url.searchParams.set("token", token);
+  url.searchParams.set("token", token);
   return url.toString();
 }
 

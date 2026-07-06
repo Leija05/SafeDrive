@@ -1,5 +1,6 @@
 """Shared endpoints for monitoring center (web dashboard and mobile)."""
 import uuid
+import html
 from fastapi import APIRouter, HTTPException, Depends, Query
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -504,11 +505,15 @@ async def post_unit_chat(unit_id: str, body: ChatIn, user: dict = Depends(requir
     """Send message to unit."""
     db = get_db()
     
+    sanitized_text = html.escape(body.text.strip()[:500])
+    if not sanitized_text:
+        raise HTTPException(status_code=400, detail="El mensaje no puede estar vacio")
+    
     msg = {
         "id": str(uuid.uuid4()),
         "unit_id": unit_id,
         "sender": "base",
-        "text": body.text,
+        "text": sanitized_text,
         "quick": body.quick,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

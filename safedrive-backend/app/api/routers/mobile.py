@@ -1,5 +1,6 @@
 """Mobile app endpoints for drivers."""
 import uuid
+import html
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone
 from app.core.database import get_db
@@ -161,12 +162,16 @@ async def driver_post_chat(body: ChatIn, user: dict = Depends(get_current_user))
     db = get_db()
     unit = await require_driver_unit(user)
     
+    sanitized_text = html.escape(body.text.strip()[:500])
+    if not sanitized_text:
+        raise HTTPException(status_code=400, detail="El mensaje no puede estar vacio")
+    
     msg = {
         "id": str(uuid.uuid4()),
         "unit_id": unit["id"],
         "unit_name": unit["name"],
         "sender": "driver",
-        "text": body.text,
+        "text": sanitized_text,
         "quick": body.quick,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }

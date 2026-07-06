@@ -1,11 +1,12 @@
 """Authentication endpoints (shared between web and mobile)."""
 import uuid
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from app.core.database import get_db
 from app.core.security import (
     hash_password, verify_password, create_access_token,
     get_current_user, require_driver, require_admin
 )
+from app.core.ratelimiter import auth_limiter
 from app.models.schemas_auth import LoginIn, RegisterIn, UserResponse
 from app.models.schemas_telemetry import Telemetry
 from app.services.geo_helpers import interp_corridor, CORRIDOR, CORRIDOR_TOLERANCE_M
@@ -15,8 +16,9 @@ from datetime import datetime, timezone
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 @router.post("/register")
-async def register(body: RegisterIn, user: dict = Depends(require_admin)):
+async def register(body: RegisterIn, request: Request, user: dict = Depends(require_admin)):
     """Register new user (driver or operator). Only admin users may create accounts."""
+    await auth_limiter.check(request)
     db = get_db()
     email = body.email.lower()
     
@@ -90,8 +92,9 @@ async def register(body: RegisterIn, user: dict = Depends(require_admin)):
     }
 
 @router.post("/login")
-async def login(body: LoginIn):
+async def login(body: LoginIn, request: Request):
     """Login user."""
+    await auth_limiter.check(request)
     db = get_db()
     email = body.email.lower()
     user = await db.users.find_one({"email": email})

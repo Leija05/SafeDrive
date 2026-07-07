@@ -754,6 +754,7 @@ function CreateCompanyModal({ onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (step < 2) return;
     if (!form.name || !form.monitor_email || !form.monitor_password || !form.monitor_name) {
       toast.error("Completa todos los campos obligatorios");
       return;

@@ -9,8 +9,8 @@ import { toast } from "sonner";
 import {
   ShieldCheck, Truck, Warning, MapPinLine, Bridge, WifiSlash, SignOut,
   Broadcast, ChatCircleDots, Siren, NavigationArrow, X, PaperPlaneRight, Gauge, UserPlus, PencilSimple, FloppyDisk, Crosshair, Pulse, ClockCounterClockwise,
-  ArrowsIn, CellSignalHigh, Eye, CheckCircle, Article, Bell, BellRinging, Key,
-  ListBullets, ArrowsLeftRight, CaretDown, CaretUp,
+  ArrowsIn, CellSignalHigh, Eye, EyeSlash, CheckCircle, Article, Bell, BellRinging, Key,
+  ListBullets, ArrowsLeftRight, CaretDown, CaretUp, Plus, IdentificationBadge, Envelope, Lock, Phone,
 } from "@phosphor-icons/react";
 
 const STATUS_LABEL = {
@@ -111,6 +111,8 @@ export default function Dashboard() {
   const [showTokenManager, setShowTokenManager] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
   const [showUnitManager, setShowUnitManager] = useState(false);
+  const [showCreateDriver, setShowCreateDriver] = useState(false);
+  const [showCreateUnit, setShowCreateUnit] = useState(false);
   const [assignForm, setAssignForm] = useState({ user_id: "", unit_id: "" });
   const wsRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -426,9 +428,16 @@ export default function Dashboard() {
                   <span className="font-heading font-bold flex items-center gap-2 text-sm">
                     <Truck size={16} weight="duotone" /> Conductores
                   </span>
-                  <button onClick={openCreateUser} className="text-[11px] px-2.5 py-1.5 rounded-xl bg-white text-black font-bold flex items-center gap-1.5 hover:bg-zinc-200 transition-all hover-lift">
-                    <UserPlus size={13} weight="bold" /> Nuevo
-                  </button>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => setShowCreateDriver(true)}
+                      className="text-[11px] px-2.5 py-1.5 rounded-xl bg-blue-500/10 text-blue-400 font-bold flex items-center gap-1.5 hover:bg-blue-500/20 transition-all border border-blue-500/20">
+                      <UserPlus size={13} weight="bold" /> Conductor
+                    </button>
+                    <button onClick={() => setShowCreateUnit(true)}
+                      className="text-[11px] px-2.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 font-bold flex items-center gap-1.5 hover:bg-emerald-500/20 transition-all border border-emerald-500/20">
+                      <Plus size={13} weight="bold" /> Unidad
+                    </button>
+                  </div>
                 </div>
                 <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
                   {helpdeskUnits.map((u) => {
@@ -952,7 +961,203 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Create Driver Modal ── */}
+      {showCreateDriver && (
+        <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
+          <div className="card-glass-strong w-full max-w-md p-6 rounded-2xl fade-up" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="font-heading font-bold text-lg flex items-center gap-2">
+                <UserPlus size={18} weight="fill" /> Registrar conductor
+              </h2>
+              <button onClick={() => setShowCreateDriver(false)} className="w-8 h-8 rounded-lg border border-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+            <CreateDriverFormInline
+              onSaved={() => { setShowCreateDriver(false); loadAll(); }}
+              onCancel={() => setShowCreateDriver(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── Create Unit Modal ── */}
+      {showCreateUnit && (
+        <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
+          <div className="card-glass-strong w-full max-w-lg p-6 rounded-2xl fade-up max-h-[90vh] overflow-y-auto" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="font-heading font-bold text-lg flex items-center gap-2">
+                <Plus size={18} weight="fill" /> Nueva unidad
+              </h2>
+              <button onClick={() => setShowCreateUnit(false)} className="w-8 h-8 rounded-lg border border-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+            <CreateUnitFormInline
+              onSaved={() => { setShowCreateUnit(false); loadAll(); }}
+              onCancel={() => setShowCreateUnit(false)}
+            />
+          </div>
+        </div>
+      )}
+
       {showTokenManager && <TokenManager onClose={() => setShowTokenManager(false)} userRole={user?.role} />}
     </div>
+  );
+}
+
+/* ── Inline Create Driver Form ── */
+function CreateDriverFormInline({ onSaved, onCancel }) {
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+      toast.error("Nombre, correo y contrasena son obligatorios");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post("/auth/register", { ...form, role: "conductor" });
+      toast.success(`Conductor ${form.name} creado correctamente`);
+      onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al crear conductor");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <label className="text-xs text-zinc-400 font-medium flex items-center gap-1.5">
+        <IdentificationBadge size={13} /> Nombre completo *
+        <input name="name" value={form.name} onChange={handleChange} placeholder="Juan Perez"
+          className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+      </label>
+      <label className="text-xs text-zinc-400 font-medium flex items-center gap-1.5">
+        <Envelope size={13} /> Correo electronico *
+        <input name="email" type="email" value={form.email} onChange={handleChange} placeholder="conductor@empresa.com"
+          className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+      </label>
+      <label className="text-xs text-zinc-400 font-medium flex items-center gap-1.5">
+        <Lock size={13} /> Contrasena *
+        <div className="relative w-full mt-1">
+          <input name="password" type={showPw ? "text" : "password"} value={form.password} onChange={handleChange} placeholder="••••••••"
+            className="w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+          <button type="button" onClick={() => setShowPw(!showPw)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300">
+            {showPw ? <EyeSlash size={15} /> : <Eye size={15} />}
+          </button>
+        </div>
+      </label>
+      <label className="text-xs text-zinc-400 font-medium flex items-center gap-1.5">
+        <Phone size={13} /> Telefono (opcional)
+        <input name="phone" value={form.phone} onChange={handleChange} placeholder="+52 867 000 0000"
+          className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+      </label>
+      <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-3 text-xs text-zinc-500">
+        Solo datos del conductor. Despues puedes asignarle una unidad desde Gestion de Unidades.
+      </div>
+      <div className="flex justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl border border-white/10 text-zinc-300 hover:border-white/30 transition-all text-sm">Cancelar</button>
+        <button type="submit" disabled={busy} className="px-5 py-2.5 rounded-xl bg-blue-500 text-white font-bold text-sm hover:bg-blue-600 transition-all flex items-center gap-2 disabled:opacity-50">
+          {busy ? "Creando..." : "Crear conductor"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/* ── Inline Create Unit Form ── */
+const MARCA_OPTIONS = ["Kenworth", "Freightliner", "International", "Dina", "Volvo", "Mercedes-Benz", "Scania", "Peterbilt", "Otro"];
+const TIPO_OPTIONS = ["Tractocamion", "Caja seca", "Refrigerado", "Plataforma", "Tanque", "Volteo", "Grua", "Pickup", "SUV", "Otro"];
+
+function CreateUnitFormInline({ onSaved, onCancel }) {
+  const [form, setForm] = useState({ name: "", plate: "", marca: "", modelo: "", anio: "", tipo: "", imei: "", color: "#00E676" });
+  const [busy, setBusy] = useState(false);
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.plate.trim()) {
+      toast.error("Nombre y placas son obligatorios");
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = { ...form, anio: form.anio ? Number(form.anio) : undefined };
+      await api.post("/units", payload);
+      toast.success("Unidad creada correctamente");
+      onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al crear unidad");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs text-zinc-400 font-medium">
+          Nombre *
+          <input name="name" value={form.name} onChange={handleChange} placeholder="NL-01"
+            className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+        </label>
+        <label className="text-xs text-zinc-400 font-medium">
+          Placas *
+          <input name="plate" value={form.plate} onChange={handleChange} placeholder="XXX-00-00"
+            className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs text-zinc-400 font-medium">
+          Marca
+          <select name="marca" value={form.marca} onChange={handleChange}
+            className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel">
+            <option value="">Seleccionar</option>
+            {MARCA_OPTIONS.map((o) => (<option key={o} value={o}>{o}</option>))}
+          </select>
+        </label>
+        <label className="text-xs text-zinc-400 font-medium">
+          Modelo
+          <input name="modelo" value={form.modelo} onChange={handleChange} placeholder="T680"
+            className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs text-zinc-400 font-medium">
+          Anio
+          <input name="anio" type="number" min="1990" max="2026" value={form.anio} onChange={handleChange} placeholder="2024"
+            className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+        </label>
+        <label className="text-xs text-zinc-400 font-medium">
+          Tipo
+          <select name="tipo" value={form.tipo} onChange={handleChange}
+            className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel">
+            <option value="">Seleccionar</option>
+            {TIPO_OPTIONS.map((o) => (<option key={o} value={o}>{o}</option>))}
+          </select>
+        </label>
+      </div>
+      <label className="text-xs text-zinc-400 font-medium">
+        IMEI / Dispositivo GPS (opcional)
+        <input name="imei" value={form.imei} onChange={handleChange} placeholder="Identificador del dispositivo GPS"
+          className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel" />
+      </label>
+      <label className="text-xs text-zinc-400 font-medium">
+        Color en mapa
+        <input type="color" name="color" value={form.color} onChange={handleChange}
+          className="mt-1 w-full h-10 bg-[#0d0d0d] border border-white/10 rounded-xl cursor-pointer" />
+      </label>
+      <div className="flex justify-end gap-3 pt-2">
+        <button type="button" onClick={onCancel} className="px-4 py-2.5 rounded-xl border border-white/10 text-zinc-300 hover:border-white/30 transition-all text-sm">Cancelar</button>
+        <button type="submit" disabled={busy} className="px-5 py-2.5 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 transition-all flex items-center gap-2 disabled:opacity-50">
+          {busy ? "Creando..." : "Crear unidad"}
+        </button>
+      </div>
+    </form>
   );
 }

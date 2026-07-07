@@ -20,6 +20,7 @@ from app.models.schemas_telemetry import Telemetry
 from app.services.geo_helpers import interp_corridor, CORRIDOR, CORRIDOR_TOLERANCE_M
 from app.services.ws_manager import manager
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 

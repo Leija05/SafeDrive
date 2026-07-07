@@ -1155,16 +1155,16 @@ function TokenManagementModal({ companyId, companyName, onClose, onSaved }) {
     { id: "oro", name: "Plan Oro", devices: 50 },
   ];
 
-  useEffect(() => {
-    loadTokenInfo();
-  }, []);
-
   const loadTokenInfo = async () => {
     try {
       const { data } = await api.get(`/auth/companies/${companyId}`);
       setTokenInfo(data.monitor_token || null);
     } catch {}
   };
+
+  useEffect(() => {
+    loadTokenInfo();
+  }, []); // eslint-disable-line
 
   const copyToken = (tok) => {
     navigator.clipboard?.writeText(tok);

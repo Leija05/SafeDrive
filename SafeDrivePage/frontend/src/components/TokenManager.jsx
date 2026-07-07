@@ -34,8 +34,6 @@ export default function TokenManager({ onClose, userRole, readOnly }) {
   const isSuperAdmin = userRole === "superadmin";
   const canCreate = isSuperAdmin && !readOnly;
 
-  useEffect(() => { loadTokens(); }, []);
-
   const loadTokens = async () => {
     try {
       if (isSuperAdmin) {
@@ -54,6 +52,8 @@ export default function TokenManager({ onClose, userRole, readOnly }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => { loadTokens(); }, []); // eslint-disable-line
 
   const toggleToken = async (tid) => {
     await api.patch(`/auth/site-tokens/${tid}`);

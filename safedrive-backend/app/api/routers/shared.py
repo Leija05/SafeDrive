@@ -172,7 +172,25 @@ async def admin_create_user(body: AdminCreateUserIn, user: dict = Depends(requir
     }
     await db.users.insert_one(doc)
 
-    return {"user": {"id": uid, "email": email, "name": body.name, "role": role, "phone": body.phone, "company_id": company_id}}
+    # Assign existing unit if provided
+    unit = None
+    if role in ("conductor", "driver") and body.unit_id:
+        unit_query = {"id": body.unit_id}
+        if company_id:
+            unit_query["company_id"] = company_id
+        existing_unit = await db.units.find_one(unit_query)
+        if existing_unit:
+            unit_update = {
+                "driver_id": uid,
+                "driver_name": body.name,
+                "driver_phone": body.phone,
+            }
+            if body.plate:
+                unit_update["plate"] = body.plate
+            await db.units.update_one({"id": body.unit_id}, {"$set": unit_update})
+            unit = await db.units.find_one({"id": body.unit_id}, {"_id": 0})
+
+    return {"user": {"id": uid, "email": email, "name": body.name, "role": role, "phone": body.phone, "company_id": company_id}, "unit": unit}
 
 @router.get("/users")
 async def admin_list_users(user: dict = Depends(require_admin)):
@@ -250,6 +268,93 @@ async def list_units(user: dict = Depends(get_current_user)):
         query["company_id"] = company_id
     units = await db.units.find(query, {"_id": 0, "password_hash": 0}).to_list(500)
     return units
+
+@router.get("/units/available")
+async def list_available_units(user: dict = Depends(require_admin)):
+    """List units that are NOT assigned to any driver (available for assignment)."""
+    db = get_db()
+    company_id = get_company_id(user)
+    query = {"driver_id": None}
+    if company_id:
+        query["company_id"] = company_id
+    units = await db.units.find(query, {"_id": 0, "password_hash": 0}).to_list(500)
+    return units
+
+
+@router.get("/units/with-drivers")
+async def list_units_with_drivers(user: dict = Depends(get_current_user)):
+    """List all units with driver info and availability status. Returns enriched data."""
+    db = get_db()
+    company_id = get_company_id(user)
+    query = {}
+    if company_id:
+        query["company_id"] = company_id
+    units = await db.units.find(query, {"_id": 0, "password_hash": 0}).to_list(500)
+
+    # Fetch all drivers for this company to enrich
+    driver_query = {"role": {"$in": ["conductor", "driver"]}}
+    if company_id:
+        driver_query["company_id"] = company_id
+    drivers = await db.users.find(driver_query, {"_id": 0, "id": 1, "name": 1, "email": 1, "phone": 1}).to_list(500)
+    driver_map = {d["id"]: d for d in drivers}
+
+    result = []
+    for u in units:
+        u["available"] = u.get("driver_id") is None
+        if u.get("driver_id") and u["driver_id"] in driver_map:
+            u["driver_info"] = driver_map[u["driver_id"]]
+            u["available"] = False
+        result.append(u)
+    return result
+
+
+@router.put("/users/{user_id}/assign-unit")
+async def assign_unit_to_user(user_id: str, body: dict, user: dict = Depends(require_admin)):
+    """Assign a different unit to a driver, freeing the old one."""
+    db = get_db()
+    company_id = get_company_id(user)
+
+    unit_id = body.get("unit_id")
+    if not unit_id:
+        raise HTTPException(status_code=400, detail="unit_id es requerido")
+
+    # Verify target user exists and is a driver
+    target = await db.users.find_one({"id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if target.get("role") not in ("conductor", "driver"):
+        raise HTTPException(status_code=400, detail="El usuario no es un conductor")
+
+    if company_id and target.get("company_id") != company_id:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este usuario")
+
+    # Verify the new unit exists and is available (or already assigned to this user)
+    unit_query = {"id": unit_id}
+    if company_id:
+        unit_query["company_id"] = company_id
+    new_unit = await db.units.find_one(unit_query)
+    if not new_unit:
+        raise HTTPException(status_code=404, detail="Unidad no encontrada")
+
+    if new_unit.get("driver_id") and new_unit["driver_id"] != user_id:
+        raise HTTPException(status_code=400, detail="La unidad ya esta asignada a otro conductor")
+
+    # Free the old unit (if any)
+    old_unit = await db.units.find_one({"driver_id": user_id})
+    if old_unit:
+        await db.units.update_one({"id": old_unit["id"]}, {"$set": {"driver_id": None, "driver_name": None, "driver_phone": None}})
+
+    # Assign new unit
+    await db.units.update_one({"id": unit_id}, {"$set": {
+        "driver_id": user_id,
+        "driver_name": target.get("name"),
+        "driver_phone": target.get("phone"),
+    }})
+
+    updated = await db.units.find_one({"id": unit_id}, {"_id": 0, "password_hash": 0})
+    await manager.broadcast({"type": "unit_update", "unit": updated})
+    return updated
+
 
 @router.get("/units/{unit_id}")
 async def get_unit(unit_id: str, user: dict = Depends(get_current_user)):

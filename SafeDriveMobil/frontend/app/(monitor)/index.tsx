@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl } from "react-native";
+import {
+  View, Text, StyleSheet, FlatList, Pressable, RefreshControl,
+  Modal, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -16,6 +19,10 @@ export default function Fleet() {
   const router = useRouter();
   const [units, setUnits] = useState<Unit[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", plate: "", imei: "", color: "#00E676" });
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -34,6 +41,32 @@ export default function Fleet() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  };
+
+  const flash = (m: string) => {
+    setMessage(m);
+    setTimeout(() => setMessage(""), 3000);
+  };
+
+  const createUnit = async () => {
+    if (!createForm.name.trim() || !createForm.plate.trim()) {
+      flash("Nombre y placas son obligatorios");
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiFetch("/units", {
+        method: "POST",
+        body: JSON.stringify(createForm),
+      });
+      setCreateForm({ name: "", plate: "", imei: "", color: "#00E676" });
+      setShowCreate(false);
+      flash("Unidad creada correctamente");
+      await load();
+    } catch (e: any) {
+      flash(e?.message || "Error al crear unidad");
+    }
+    setBusy(false);
   };
 
   const renderItem = ({ item }: { item: Unit }) => {
@@ -95,6 +128,9 @@ export default function Fleet() {
         <View style={styles.headerCount}>
           <Text style={styles.headerCountText}>{units.length} unid.</Text>
         </View>
+        <Pressable onPress={() => setShowCreate(true)} style={styles.addBtn}>
+          <MaterialCommunityIcons name="plus" size={18} color={colors.onBrand} />
+        </Pressable>
       </View>
       <FlatList
         data={units}
@@ -116,10 +152,72 @@ export default function Fleet() {
               <MaterialCommunityIcons name="truck-remove" size={40} color={colors.textTertiary} />
             </View>
             <Text style={styles.emptyText}>Sin unidades registradas</Text>
-            <Text style={styles.emptyHint}>Los conductores aparecen al registrarse en el sistema.</Text>
+            <Pressable onPress={() => setShowCreate(true)} style={styles.emptyBtn}>
+              <MaterialCommunityIcons name="plus" size={16} color={colors.onBrand} />
+              <Text style={styles.emptyBtnText}>CREAR PRIMERA UNIDAD</Text>
+            </Pressable>
           </View>
         }
       />
+
+      {/* Create Unit Modal */}
+      <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
+        <KeyboardAvoidingView style={styles.modalShade} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHead}>
+              <Text style={styles.modalTitle}>CREAR UNIDAD</Text>
+              <Pressable onPress={() => setShowCreate(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.onSurface} />
+              </Pressable>
+            </View>
+            <ScrollView
+              contentContainerStyle={[styles.modalBody, { paddingBottom: insets.bottom + spacing.xl }]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <TextInput
+                value={createForm.name}
+                onChangeText={(name) => setCreateForm((f) => ({ ...f, name }))}
+                placeholder="Nombre de la unidad (ej: NL-01)"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.input}
+              />
+              <TextInput
+                value={createForm.plate}
+                onChangeText={(plate) => setCreateForm((f) => ({ ...f, plate }))}
+                placeholder="Placas"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.input}
+              />
+              <TextInput
+                value={createForm.imei}
+                onChangeText={(imei) => setCreateForm((f) => ({ ...f, imei }))}
+                placeholder="IMEI (opcional)"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.input}
+              />
+              <Pressable onPress={createUnit} disabled={busy} style={styles.primaryBtn}>
+                {busy ? (
+                  <ActivityIndicator color={colors.onBrand} />
+                ) : (
+                  <Text style={styles.primaryText}>GUARDAR UNIDAD</Text>
+                )}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {!!message && (
+        <View style={[styles.toast, { bottom: insets.bottom + spacing.lg }]}>
+          <MaterialCommunityIcons
+            name={message.includes("correctamente") ? "check-circle" : "alert-circle"}
+            size={16}
+            color={message.includes("correctamente") ? colors.success : colors.warning}
+          />
+          <Text style={styles.toastText}>{message}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -178,4 +276,46 @@ const styles = StyleSheet.create({
   },
   emptyText: { color: colors.onSurface, fontSize: 16, fontWeight: "600" },
   emptyHint: { color: colors.textTertiary, fontSize: 13, textAlign: "center", maxWidth: 260 },
+  addBtn: {
+    marginLeft: "auto",
+    width: 32, height: 32, borderRadius: radius.md,
+    backgroundColor: colors.brand, alignItems: "center", justifyContent: "center",
+  },
+  emptyBtn: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: colors.brand, borderRadius: radius.md,
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.md, marginTop: spacing.lg,
+  },
+  emptyBtnText: { color: colors.onBrand, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
+  // Modal styles
+  modalShade: { flex: 1, backgroundColor: "rgba(0,0,0,0.72)", justifyContent: "flex-end" },
+  modalCard: {
+    maxHeight: "70%", backgroundColor: colors.surfaceSecondary,
+    borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  modalHead: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  modalTitle: { color: colors.onSurface, fontFamily: MONO, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
+  modalBody: { padding: spacing.lg, gap: spacing.md },
+  input: {
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md,
+    color: colors.onSurface, fontSize: 14,
+  },
+  primaryBtn: {
+    flexDirection: "row", gap: spacing.sm, backgroundColor: colors.brand,
+    borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center",
+    minHeight: 48, justifyContent: "center",
+  },
+  primaryText: { color: colors.onBrand, fontWeight: "800", fontSize: 12, letterSpacing: 1 },
+  toast: {
+    position: "absolute", left: spacing.lg, right: spacing.lg,
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.borderStrong,
+    borderRadius: radius.md, padding: spacing.md,
+  },
+  toastText: { color: colors.onSurface, fontSize: 13, fontWeight: "600", textAlign: "center", flex: 1 },
 });

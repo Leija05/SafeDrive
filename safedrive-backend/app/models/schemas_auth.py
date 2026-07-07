@@ -19,6 +19,7 @@ class RegisterIn(BaseModel):
     phone: Optional[str] = None
     plate: Optional[str] = None
     role: Optional[str] = "conductor"
+    unit_id: Optional[str] = None
 
 class AdminCreateUserIn(BaseModel):
     """Admin creating a new user."""
@@ -28,6 +29,7 @@ class AdminCreateUserIn(BaseModel):
     role: str = "conductor"
     phone: Optional[str] = None
     plate: Optional[str] = None
+    unit_id: Optional[str] = None
 
 class AdminUpdateUserIn(BaseModel):
     """Admin updating a user."""
@@ -96,6 +98,8 @@ class CompanyCreateIn(BaseModel):
     monitor_email: EmailStr
     monitor_password: str
     monitor_name: str
+    plan_id: Optional[str] = None       # 'bronce' | 'plata' | 'oro'
+    cycle: Optional[str] = None         # 'Semanal' | 'Mensual' | etc.
 
 class CompanyUpdateIn(BaseModel):
     """Update company info (superadmin only)."""

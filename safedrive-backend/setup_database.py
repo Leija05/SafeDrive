@@ -52,12 +52,19 @@ COLLECTIONS = {
                     "active": {"bsonType": "bool"},
                     "created_by": {"bsonType": ["string", "null"]},
                     "created_at": {"bsonType": "string"},
+                    "plan_id": {"bsonType": ["string", "null"]},
+                    "plan_name": {"bsonType": ["string", "null"]},
+                    "cycle": {"bsonType": ["string", "null"]},
+                    "max_drivers": {"bsonType": ["int", "null"]},
+                    "has_token": {"bsonType": ["bool", "null"]},
+                    "subscription_expires_at": {"bsonType": ["string", "null"]},
                 },
             }
         },
         "indexes": [
             {"keys": [("id", 1)], "unique": True},
             {"keys": [("email", 1)]},
+            {"keys": [("has_token", 1)]},
         ],
     },
     "site_tokens": {

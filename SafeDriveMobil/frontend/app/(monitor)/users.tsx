@@ -11,11 +11,15 @@ import { colors, spacing, radius, MONO } from "@/src/theme";
 
 type UserRow = {
   id: string; email: string; name: string; role: string; phone?: string | null;
-  unit?: { name?: string; plate?: string; driver_phone?: string | null } | null;
+  unit?: { id?: string; name?: string; plate?: string; driver_phone?: string | null } | null;
 };
 
-const emptyForm = { name: "", email: "", password: "", phone: "", plate: "", role: "driver" };
-const emptyEdit = { name: "", email: "", password: "", phone: "", plate: "", role: "driver", admin_password: "" };
+type UnitOption = {
+  id: string; name: string; plate: string; driver_id?: string | null;
+};
+
+const emptyForm = { name: "", email: "", password: "", phone: "", plate: "", role: "driver", unit_id: "" };
+const emptyEdit = { name: "", email: "", password: "", phone: "", plate: "", role: "driver", unit_id: "", admin_password: "" };
 
 function RoleSwitch({ value, onChange }: { value: string; onChange: (role: string) => void }) {
   return (
@@ -44,6 +48,7 @@ export default function MonitorUsers() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [units, setUnits] = useState<UnitOption[]>([]);
   const [createForm, setCreateForm] = useState(emptyForm);
   const [editForm, setEditForm] = useState(emptyEdit);
   const [selected, setSelected] = useState<UserRow | null>(null);
@@ -56,6 +61,8 @@ export default function MonitorUsers() {
   const load = useCallback(async () => {
     try {
       setUsers(await apiFetch<UserRow[]>("/users"));
+      const allUnits = await apiFetch<UnitOption[]>("/units/with-drivers");
+      setUnits(allUnits);
     } catch {}
   }, []);
 
@@ -73,7 +80,9 @@ export default function MonitorUsers() {
     }
     setBusy(true);
     try {
-      await apiFetch("/users", { method: "POST", body: JSON.stringify({ ...createForm, email: createForm.email.trim().toLowerCase() }) });
+      const payload: any = { ...createForm, email: createForm.email.trim().toLowerCase() };
+      if (!payload.unit_id) delete payload.unit_id;
+      await apiFetch("/users", { method: "POST", body: JSON.stringify(payload) });
       setCreateForm(emptyForm);
       setCreateOpen(false);
       flash("Usuario creado correctamente");
@@ -84,11 +93,14 @@ export default function MonitorUsers() {
     setBusy(false);
   };
 
+  const allUnits = units;
+  const unitOptions = allUnits.filter((u) => !u.driver_id || u.driver_id === selected?.id);
+
   const openUser = (u: UserRow) => {
     setSelected(u);
     setEditForm({
       name: u.name || "", email: u.email || "", password: "", phone: u.phone || u.unit?.driver_phone || "",
-      plate: u.unit?.plate || "", role: u.role || "driver", admin_password: "",
+      plate: u.unit?.plate || "", role: u.role || "driver", unit_id: u.unit?.id || "", admin_password: "",
     });
   };
 
@@ -102,7 +114,14 @@ export default function MonitorUsers() {
     try {
       const payload: any = { ...editForm, email: editForm.email.trim().toLowerCase() };
       if (!payload.password) delete payload.password;
+      delete payload.unit_id;
       const updated = await apiFetch<UserRow>(`/users/${selected.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      // Assign unit if changed
+      if (editForm.unit_id && editForm.unit_id !== (selected.unit?.id || "")) {
+        await apiFetch(`/users/${selected.id}/assign-unit`, {
+          method: "PUT", body: JSON.stringify({ unit_id: editForm.unit_id })
+        });
+      }
       setSelected(updated);
       flash("Usuario actualizado");
       await load();
@@ -183,7 +202,54 @@ export default function MonitorUsers() {
               <TextInput value={createForm.password} onChangeText={(password) => setCreateForm((f) => ({ ...f, password }))} placeholder="Contraseña temporal" placeholderTextColor={colors.textTertiary} secureTextEntry style={styles.input} />
               <TextInput value={createForm.phone} onChangeText={(phone) => setCreateForm((f) => ({ ...f, phone }))} placeholder="Teléfono" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" style={styles.input} />
               {createForm.role === "driver" && (
-                <TextInput value={createForm.plate} onChangeText={(plate) => setCreateForm((f) => ({ ...f, plate }))} placeholder="Placas" placeholderTextColor={colors.textTertiary} style={styles.input} />
+                <>
+                  <TextInput value={createForm.plate} onChangeText={(plate) => setCreateForm((f) => ({ ...f, plate }))} placeholder="Placas" placeholderTextColor={colors.textTertiary} style={styles.input} />
+                  <View style={styles.pickerWrap}>
+                    <Text style={styles.pickerLabel}>UNIDAD (OPCIONAL — {units.filter((u) => !u.driver_id).length} disponibles)</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
+                      <Pressable
+                        onPress={() => setCreateForm((f) => ({ ...f, unit_id: "" }))}
+                        style={[styles.pickerOption, !createForm.unit_id && styles.pickerOptionActive]}
+                      >
+                        <Text style={[styles.pickerOptionText, !createForm.unit_id && styles.pickerOptionTextActive]}>Auto-crear</Text>
+                      </Pressable>
+                      {units.map((u) => {
+                        const libre = !u.driver_id;
+                        return (
+                          <Pressable
+                            key={u.id}
+                            onPress={() => libre && setCreateForm((f) => ({ ...f, unit_id: u.id }))}
+                            style={[styles.pickerOption, createForm.unit_id === u.id && styles.pickerOptionActive, !libre && { opacity: 0.4 }]}
+                          >
+                            <Text style={[styles.pickerOptionText, createForm.unit_id === u.id && styles.pickerOptionTextActive]}>
+                              {u.name} · {u.plate} {libre ? "(disp.)" : "(ocupado)"}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+
+                  {/* Quick unit list showing availability */}
+                  <View style={styles.unitGrid}>
+                    <Text style={[styles.pickerLabel, { marginBottom: spacing.sm }]}>TODAS LAS UNIDADES</Text>
+                    <View style={styles.pickerRow}>
+                      {units.map((u) => {
+                        const libre = !u.driver_id;
+                        return (
+                          <View key={u.id} style={[styles.unitChip, libre ? styles.unitChipFree : styles.unitChipBusy]}>
+                            <Text style={[styles.unitChipText, libre ? { color: colors.success } : { color: colors.textTertiary }]}>
+                              {u.name}
+                            </Text>
+                            {u.driver_name && (
+                              <Text style={styles.unitChipDriver} numberOfLines={1}>{u.driver_name}</Text>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
               )}
               <Pressable onPress={createUser} disabled={busy} style={styles.primaryBtn}>
                 {busy ? (
@@ -216,7 +282,48 @@ export default function MonitorUsers() {
               <TextInput value={editForm.email} onChangeText={(email) => setEditForm((f) => ({ ...f, email }))} placeholder="Correo" placeholderTextColor={colors.textTertiary} autoCapitalize="none" keyboardType="email-address" style={styles.input} />
               <TextInput value={editForm.phone} onChangeText={(phone) => setEditForm((f) => ({ ...f, phone }))} placeholder="Teléfono" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" style={styles.input} />
               {editForm.role === "driver" && (
-                <TextInput value={editForm.plate} onChangeText={(plate) => setEditForm((f) => ({ ...f, plate }))} placeholder="Placas" placeholderTextColor={colors.textTertiary} style={styles.input} />
+                <>
+                  <TextInput value={editForm.plate} onChangeText={(plate) => setEditForm((f) => ({ ...f, plate }))} placeholder="Placas" placeholderTextColor={colors.textTertiary} style={styles.input} />
+                  <View style={styles.pickerWrap}>
+                    <Text style={styles.pickerLabel}>UNIDAD ASIGNADA</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
+                      {units.map((u) => {
+                        const libre = !u.driver_id || u.driver_id === selected?.id;
+                        return (
+                          <Pressable
+                            key={u.id}
+                            onPress={() => libre && setEditForm((f) => ({ ...f, unit_id: u.id }))}
+                            style={[styles.pickerOption, editForm.unit_id === u.id && styles.pickerOptionActive, !libre && { opacity: 0.4 }]}
+                          >
+                            <Text style={[styles.pickerOptionText, editForm.unit_id === u.id && styles.pickerOptionTextActive]}>
+                              {u.name} · {u.plate}{libre ? (u.driver_id ? ' (asignado)' : ' (libre)') : ' (ocupado)'}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+
+                  {/* Quick unit grid showing availability */}
+                  <View style={styles.unitGrid}>
+                    <Text style={[styles.pickerLabel, { marginBottom: spacing.sm }]}>ESTADO DE UNIDADES</Text>
+                    <View style={styles.pickerRow}>
+                      {units.map((u) => {
+                        const libre = !u.driver_id || u.driver_id === selected?.id;
+                        return (
+                          <View key={u.id} style={[styles.unitChip, libre ? styles.unitChipFree : styles.unitChipBusy]}>
+                            <Text style={[styles.unitChipText, libre ? { color: colors.success } : { color: colors.textTertiary }]}>
+                              {u.name}
+                            </Text>
+                            {u.driver_name && (
+                              <Text style={styles.unitChipDriver} numberOfLines={1}>{u.driver_name}</Text>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
               )}
               <TextInput value={editForm.password} onChangeText={(password) => setEditForm((f) => ({ ...f, password }))} placeholder="Nueva contraseña (opcional)" placeholderTextColor={colors.textTertiary} secureTextEntry style={styles.input} />
               <TextInput value={editForm.admin_password} onChangeText={(admin_password) => setEditForm((f) => ({ ...f, admin_password }))} placeholder="Contraseña del monitorista para confirmar" placeholderTextColor={colors.textTertiary} secureTextEntry style={[styles.input, styles.confirmInput]} />
@@ -273,6 +380,18 @@ const styles = StyleSheet.create({
     color: colors.onSurface, fontSize: 14,
   },
   confirmInput: { borderColor: colors.warning },
+  pickerWrap: { gap: spacing.sm },
+  pickerLabel: { color: colors.textTertiary, fontFamily: MONO, fontSize: 10, letterSpacing: 1.8 },
+  pickerScroll: { marginHorizontal: -spacing.lg, paddingHorizontal: spacing.lg },
+  pickerRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  pickerOption: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  pickerOptionActive: { borderColor: colors.brand, backgroundColor: colors.brandTertiary },
+  pickerOptionText: { color: colors.textSecondary, fontSize: 12, fontFamily: MONO },
+  pickerOptionTextActive: { color: colors.brand },
   primaryBtn: {
     flexDirection: "row", gap: spacing.sm, backgroundColor: colors.brand,
     borderRadius: radius.md, paddingVertical: spacing.md, alignItems: "center",
@@ -311,4 +430,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, padding: spacing.md,
   },
   toastText: { color: colors.onSurface, fontSize: 13, fontWeight: "600", textAlign: "center", flex: 1 },
+  unitGrid: { marginTop: spacing.sm },
+  unitChip: {
+    borderWidth: 1, borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+    minWidth: 60, alignItems: "center",
+  },
+  unitChipFree: { borderColor: colors.success, backgroundColor: colors.success + "15" },
+  unitChipBusy: { borderColor: colors.border, backgroundColor: colors.surface },
+  unitChipText: { fontFamily: MONO, fontSize: 9, fontWeight: "700" },
+  unitChipDriver: { color: colors.textTertiary, fontSize: 8, marginTop: 1, maxWidth: 60 },
 });

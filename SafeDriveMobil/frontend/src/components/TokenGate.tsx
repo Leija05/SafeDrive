@@ -12,7 +12,7 @@ import Button from "@/src/components/ui/Button";
 
 export default function TokenGate({ onDone }: { onDone: () => void }) {
   const insets = useSafeAreaInsets();
-  const { verifyDriverToken } = useAuth();
+  const { verifyDriverToken, driverToken, clearDriverToken } = useAuth();
   const [tokenInput, setTokenInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,6 +33,12 @@ export default function TokenGate({ onDone }: { onDone: () => void }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const clearExisting = async () => {
+    await clearDriverToken();
+    setTokenInput("");
+    setError("");
   };
 
   return (
@@ -68,6 +74,21 @@ export default function TokenGate({ onDone }: { onDone: () => void }) {
             Este código vincula tu dispositivo con tu unidad.
           </Text>
         </View>
+
+        {driverToken && (
+          <View style={styles.existingTokenBox}>
+            <View style={styles.existingTokenRow}>
+              <MaterialCommunityIcons name="key" size={16} color={colors.warning} />
+              <Text style={styles.existingTokenText} numberOfLines={1}>
+                Token actual: {driverToken.slice(0, 16)}...
+              </Text>
+            </View>
+            <Pressable onPress={clearExisting} style={styles.clearBtn}>
+              <MaterialCommunityIcons name="close-circle" size={16} color={colors.error} />
+              <Text style={styles.clearBtnText}>LIMPIAR</Text>
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.formCard}>
           <View style={styles.inputGroup}>
@@ -115,6 +136,158 @@ export default function TokenGate({ onDone }: { onDone: () => void }) {
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.surface },
+  scroll: { paddingHorizontal: spacing.xl },
+  brandSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.lg,
+    marginBottom: spacing["2xl"],
+  },
+  logoBox: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.brandTertiary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  brand: {
+    color: colors.onSurface,
+    fontFamily: MONO,
+    fontSize: 22,
+    letterSpacing: 4,
+    fontWeight: "700",
+  },
+  brandSub: {
+    color: colors.brand,
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: 2.5,
+    marginTop: 3,
+  },
+  greetingSection: { marginBottom: spacing.xl },
+  title: {
+    color: colors.onSurface,
+    fontSize: 28,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  existingTokenBox: {
+    backgroundColor: colors.warningDim,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  existingTokenRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flex: 1,
+  },
+  existingTokenText: {
+    color: colors.onSurface,
+    fontSize: 12,
+    fontFamily: MONO,
+    flex: 1,
+  },
+  clearBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  clearBtnText: {
+    color: colors.error,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  formCard: {
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.xl,
+  },
+  inputGroup: { gap: spacing.sm },
+  label: {
+    color: colors.textTertiary,
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: 1.8,
+  },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    overflow: "hidden",
+  },
+  inputIcon: { paddingLeft: spacing.md },
+  input: {
+    flex: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    color: colors.onSurface,
+    fontSize: 15,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.errorDim,
+    borderWidth: 1,
+    borderColor: colors.error,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  errorText: { color: colors.error, fontSize: 13, fontWeight: "600", flex: 1 },
+  submitBtn: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    backgroundColor: colors.brand,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  submitBtnText: {
+    color: colors.onBrand,
+    fontWeight: "900",
+    fontSize: 14,
+    letterSpacing: 1.5,
+  },
+  footer: {
+    alignItems: "center",
+    marginTop: spacing["2xl"],
+  },
+  footerText: {
+    color: colors.textTertiary,
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: 1,
+    textAlign: "center",
+  },
+});
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.surface },

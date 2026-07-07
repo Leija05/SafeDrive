@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import {
   X, Key, Copy, Eye, EyeSlash, Plus, Monitor, Truck,
   CheckCircle, CurrencyCircleDollar, CalendarBlank, Clock,
-  ArrowClockwise, Trash,
+  ArrowClockwise, Trash, FunnelSimple, MagnifyingGlass,
+  CaretDown, Warning,
 } from "@phosphor-icons/react";
 
 const PLANS = [
@@ -16,27 +17,37 @@ const PLANS = [
 const CYCLES = ["Semanal", "Mensual", "Bimestral", "Trimestral", "Anual"];
 const mx = (n) => `$${n.toLocaleString("es-MX")} MXN`;
 
-export default function TokenManager({ onClose, userRole }) {
+export default function TokenManager({ onClose, userRole, readOnly }) {
   const [tokens, setTokens] = useState([]);
-  const [monitorTokens, setMonitorTokens] = useState([]);
+  const [monitorToken, setMonitorToken] = useState(null);
+  const [conductorTokens, setConductorTokens] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showMon, setShowMon] = useState(true);
-  const [showDrv, setShowDrv] = useState(true);
   const [createMode, setCreateMode] = useState(null);
-  const [form, setForm] = useState({ name: "", count: 1, max_uses: "", plan_id: "plata", cycle: "Mensual" });
+  const [form, setForm] = useState({ name: "", count: 1, plan_id: "plata", cycle: "Mensual" });
   const [revealed, setRevealed] = useState({});
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [filterRole, setFilterRole] = useState("all");
+  const [filterActive, setFilterActive] = useState("all");
+  const [search, setSearch] = useState("");
 
   const isSuperAdmin = userRole === "superadmin";
+  const canCreate = isSuperAdmin && !readOnly;
 
   useEffect(() => { loadTokens(); }, []);
 
   const loadTokens = async () => {
     try {
-      const { data } = await api.get("/auth/site-tokens");
-      setTokens(data);
-      setMonitorTokens(data.filter((t) => t.role === "monitorista"));
+      if (isSuperAdmin) {
+        const { data } = await api.get("/auth/site-tokens");
+        setTokens(data);
+        setMonitorToken(data.find((t) => t.role === "monitorista") || null);
+        setConductorTokens(data.filter((t) => t.role === "conductor"));
+      } else {
+        const { data } = await api.get("/auth/company-token-overview");
+        setMonitorToken(data.monitor_token || null);
+        setConductorTokens(data.conductor_tokens || []);
+      }
     } catch {
       toast.error("No se pudieron cargar los tokens");
     } finally {
@@ -46,14 +57,18 @@ export default function TokenManager({ onClose, userRole }) {
 
   const toggleToken = async (tid) => {
     await api.patch(`/auth/site-tokens/${tid}`);
-    setTokens((prev) => prev.map((t) => t.token === tid ? { ...t, active: !t.active } : t));
+    if (monitorToken?.token === tid) {
+      setMonitorToken((prev) => prev ? { ...prev, active: !prev.active } : prev);
+    } else {
+      setConductorTokens((prev) => prev.map((t) => t.token === tid ? { ...t, active: !t.active } : t));
+    }
     toast.success("Token actualizado");
   };
 
   const renewToken = async (tid) => {
     try {
       const { data } = await api.post(`/auth/renew-token/${tid}`);
-      setTokens((prev) => prev.map((t) => t.token === tid ? { ...t, expires_at: data.expires_at, expired: false, active: true } : t));
+      setMonitorToken((prev) => prev ? { ...prev, expires_at: data.expires_at, expired: false, active: true } : prev);
       toast.success(`Suscripción renovada hasta ${new Date(data.expires_at).toLocaleDateString("es-MX")}`);
     } catch {
       toast.error("Error al renovar");
@@ -64,11 +79,10 @@ export default function TokenManager({ onClose, userRole }) {
     setDeleting(true);
     try {
       await api.delete(`/auth/site-tokens/${tid}`);
-      setTokens((prev) => prev.filter((t) => t.token !== tid));
-      toast.success("Token eliminado permanentemente");
+      setConductorTokens((prev) => prev.filter((t) => t.token !== tid));
+      toast.success("Token eliminado");
     } catch (err) {
-      const msg = err.response?.data?.detail || "Error al eliminar token";
-      toast.error(msg);
+      toast.error(err.response?.data?.detail || "Error al eliminar token");
     } finally {
       setDeleting(false);
       setConfirmDelete(null);
@@ -90,38 +104,23 @@ export default function TokenManager({ onClose, userRole }) {
           role: "monitorista",
           plan_id: form.plan_id,
           cycle: form.cycle,
-          max_uses: form.max_uses ? Number(form.max_uses) : null,
         });
-        setTokens((prev) => [
-          { ...data, use_count: 0, active: true, drivers_used: 0, expired: false, created_at: new Date().toISOString() },
-          ...prev,
-        ]);
-        toast.success(`Token monitorista ${form.plan_id.toUpperCase()} creado — ${selectedPlan?.name} (${selectedPlan?.devices} conductores)`);
+        setMonitorToken({ ...data, active: true, drivers_used: 0, expired: false });
+        toast.success(`Token monitorista creado — ${form.plan_id.toUpperCase()}`);
       } else {
-        const selectedMon = monitorTokens.find((m) => m.token === form.parent_token);
         const { data } = await api.post("/auth/driver-tokens", {
           count: Number(form.count) || 1,
           parent_token: form.parent_token || undefined,
-          max_uses: form.max_uses ? Number(form.max_uses) : 1,
         });
-        data.tokens.forEach((t) => {
-          setTokens((prev) => [
-            { ...t, active: true, use_count: 0, max_uses: 1, role: "conductor", parent_token: form.parent_token, created_at: new Date().toISOString() },
-            ...prev,
-          ]);
-        });
-        // Update parent driver count in state
-        if (selectedMon) {
-          setTokens((prev) => prev.map((t) =>
-            t.token === form.parent_token
-              ? { ...t, drivers_used: (t.drivers_used || 0) + Number(form.count) }
-              : t
-          ));
+        const newDrivers = data.tokens.map((t) => ({ ...t, active: true, role: "conductor", parent_token: form.parent_token }));
+        setConductorTokens((prev) => [...newDrivers, ...prev]);
+        if (monitorToken) {
+          setMonitorToken((prev) => prev ? { ...prev, drivers_used: (prev.drivers_used || 0) + Number(form.count) } : prev);
         }
         toast.success(`${data.tokens.length} token(s) de conductor creados`);
       }
       setCreateMode(null);
-      setForm({ name: "", count: 1, max_uses: "", plan_id: "plata", cycle: "Mensual", parent_token: monitorTokens[0]?.token || "" });
+      setForm({ name: "", count: 1, plan_id: "plata", cycle: "Mensual", parent_token: "" });
     } catch (err) {
       const msg = err.response?.data?.detail || "Error al crear token";
       toast.error(msg);
@@ -131,16 +130,17 @@ export default function TokenManager({ onClose, userRole }) {
   const selectedPlan = PLANS.find((p) => p.id === form.plan_id);
   const price = selectedPlan?.prices?.[form.cycle] || 0;
 
-  // Refresh monitor tokens when tokens change
-  useEffect(() => {
-    setMonitorTokens(tokens.filter((t) => t.role === "monitorista" && t.active && !t.expired));
-  }, [tokens]);
-
-  const filtered = tokens.filter((t) => {
-    if (t.role === "monitorista" && !showMon) return false;
-    if (t.role === "conductor" && !showDrv) return false;
+  // Filter conductor tokens
+  const filteredConductors = conductorTokens.filter((t) => {
+    if (filterActive === "active" && !t.active) return false;
+    if (filterActive === "inactive" && t.active) return false;
+    if (search && !t.name?.toLowerCase().includes(search.toLowerCase()) && !t.token?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  const driversPct = monitorToken?.max_drivers > 0
+    ? Math.round(((monitorToken.drivers_used || 0) / monitorToken.max_drivers) * 100)
+    : 0;
 
   return (
     <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
@@ -150,21 +150,13 @@ export default function TokenManager({ onClose, userRole }) {
             <Key size={18} weight="fill" /> Gestión de Tokens
           </h2>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs font-tel">
-              <button onClick={() => setShowMon(!showMon)}
-                className={`px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${showMon ? "border-white/20 bg-white/5 text-white" : "border-white/5 text-zinc-600"}`}>
-                <Monitor size={13} /> Monitoristas
+            {canCreate && !monitorToken && (
+              <button onClick={() => setCreateMode("monitorista")} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white text-black font-bold flex items-center gap-1.5 hover:bg-zinc-200 transition-all">
+                <Plus size={13} weight="bold" /> Nuevo Monitorista
               </button>
-              <button onClick={() => setShowDrv(!showDrv)}
-                className={`px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 ${showDrv ? "border-white/20 bg-white/5 text-white" : "border-white/5 text-zinc-600"}`}>
-                <Truck size={13} /> Conductores
-              </button>
-            </div>
-            <button onClick={() => setCreateMode("monitorista")} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-white text-black font-bold flex items-center gap-1.5 hover:bg-zinc-200 transition-all">
-              <Plus size={13} weight="bold" /> Nuevo Monitorista
-            </button>
-            {monitorTokens.length > 0 && (
-              <button onClick={() => { setForm((f) => ({ ...f, parent_token: monitorTokens[0]?.token })); setCreateMode("conductor"); }}
+            )}
+            {canCreate && monitorToken && (
+              <button onClick={() => { setForm((f) => ({ ...f, parent_token: monitorToken.token })); setCreateMode("conductor"); }}
                 className="text-[11px] px-2.5 py-1.5 rounded-lg bg-[#007AFF] text-white font-bold flex items-center gap-1.5 hover:bg-[#3399FF] transition-all">
                 <Plus size={13} weight="bold" /> Nuevo Conductor
               </button>
@@ -175,114 +167,258 @@ export default function TokenManager({ onClose, userRole }) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-600">
-              <Key size={32} className="text-zinc-700" />
-              <p className="text-sm font-tel">No hay tokens que mostrar</p>
-            </div>
           ) : (
-            filtered.map((t) => {
-              const isMon = t.role === "monitorista";
-              const col = isMon ? "#FF2A2A" : "#007AFF";
-              const roleLabel = isMon ? "Monitorista" : "Conductor";
-              const expired = t.expired || false;
-              const maxDrivers = t.max_drivers || 0;
-              const driversUsed = t.drivers_used || 0;
-              const driversPct = maxDrivers > 0 ? Math.round((driversUsed / maxDrivers) * 100) : 0;
-              return (
-                <div key={t.token} className={`p-3 rounded-xl border transition-all ${!t.active || expired ? "border-white/5 opacity-50" : "border-white/10 hover:border-white/20"}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: expired ? "#52525B" : col }} />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-tel font-semibold text-sm">{t.name || "Sin nombre"}</span>
-                          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-tel font-bold" style={{ color: col, background: `${col}1a` }}>{roleLabel}</span>
-                          {expired && (
-                            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-tel font-bold bg-zinc-800 text-zinc-400">
-                              Expirado
-                            </span>
-                          )}
-                          {t.plan_name && (
-                            <span className="text-[10px] font-tel text-zinc-500 bg-white/5 px-1.5 py-0.5 rounded">{t.plan_name}</span>
-                          )}
+            <>
+              {/* ── Highlighted Company Monitor Token ── */}
+              {monitorToken && (
+                <div className={`relative overflow-hidden rounded-xl border-2 transition-all ${
+                  monitorToken.active && !monitorToken.expired
+                    ? "border-amber-500/40 bg-gradient-to-br from-amber-500/10 via-transparent to-amber-600/5 shadow-lg shadow-amber-500/10"
+                    : "border-zinc-700/50 bg-zinc-900/60 opacity-70"
+                }`}>
+                  {monitorToken.active && !monitorToken.expired && (
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+                  )}
+                  <div className="p-4 relative z-10">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                          <Monitor size={20} weight="fill" className="text-amber-400" />
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <code className="font-tel text-[11px] text-zinc-400 bg-black/30 px-2 py-0.5 rounded">
-                            {revealed[t.token] ? t.token : `${t.token.slice(0, 16)}...`}
-                          </code>
-                          <button onClick={() => setRevealed((r) => ({ ...r, [t.token]: !r[t.token] }))}
-                            className="text-zinc-500 hover:text-white transition-colors">
-                            {revealed[t.token] ? <EyeSlash size={13} /> : <Eye size={13} />}
-                          </button>
-                          <button onClick={() => copyToken(t.token)}
-                            className="text-zinc-500 hover:text-white transition-colors">
-                            <Copy size={13} />
-                          </button>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-heading font-bold text-base">{monitorToken.name || "Token de empresa"}</span>
+                            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold bg-amber-500/20 text-amber-400">Monitorista Único</span>
+                            {monitorToken.expired && (
+                              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded font-bold bg-red-500/20 text-red-400">Expirado</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-500 mt-0.5">Token único de la empresa — Compártelo con el monitorista</p>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3 font-tel text-[11px] text-zinc-500 shrink-0">
-                      {isMon && maxDrivers > 0 && (
-                        <div className="flex flex-col items-end gap-0.5 min-w-[80px]">
-                          <span className="flex items-center gap-1"><Truck size={11} /> {driversUsed}/{maxDrivers}</span>
-                          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, driversPct)}%`, background: driversPct >= 90 ? "#FF2A2A" : driversPct >= 70 ? "#FFB800" : "#00E676" }} />
-                          </div>
-                        </div>
-                      )}
-                      {t.expires_at && (
-                        <span className={`flex items-center gap-1 ${expired ? "text-[#FF2A2A]" : "text-zinc-400"}`}>
-                          <CalendarBlank size={11} />
-                          {new Date(t.expires_at).toLocaleDateString("es-MX")}
-                        </span>
-                      )}
-                      <span>{t.use_count ?? 0}/{t.max_uses ?? "∞"}</span>
-                      {t.unit_id && <span className="flex items-center gap-1"><Truck size={11} /> Vinculado</span>}
-                      {t.device_id && <span className="flex items-center gap-1"><CheckCircle size={11} className="text-[#00E676]" /> Activo</span>}
-                      {isMon && expired && (
-                        <button onClick={() => renewToken(t.token)}
-                          className="px-2 py-1 rounded-lg border border-[#FFB800]/30 text-[#FFB800] text-[10px] font-bold uppercase tracking-wider hover:bg-[#FFB800]/5 transition-all flex items-center gap-1">
-                          <ArrowClockwise size={11} /> Renovar
+                      <div className="flex items-center gap-2 shrink-0">
+                        {monitorToken.expired && (
+                          <button onClick={() => renewToken(monitorToken.token)}
+                            className="px-3 py-1.5 rounded-lg border border-amber-500/30 text-amber-400 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-500/10 transition-all flex items-center gap-1">
+                            <ArrowClockwise size={11} /> Renovar
+                          </button>
+                        )}
+                        <button onClick={() => toggleToken(monitorToken.token)}
+                          className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${
+                            monitorToken.active && !monitorToken.expired
+                              ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                              : "border-zinc-700 text-zinc-500"
+                          }`}>
+                          {monitorToken.active ? "Activo" : "Inactivo"}
                         </button>
-                      )}
-                      <button onClick={() => toggleToken(t.token)}
-                        className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${t.active && !expired ? "border-[#00E676]/30 text-[#00E676] hover:bg-[#00E676]/5" : "border-zinc-700 text-zinc-600 hover:border-zinc-500"}`}>
-                        {t.active ? "Activo" : "Inactivo"}
+                      </div>
+                    </div>
+
+                    {/* Token code */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <code className="font-mono text-sm bg-black/40 px-3 py-1.5 rounded-lg border border-white/10 select-all">
+                        {revealed[monitorToken.token] ? monitorToken.token : `${monitorToken.token.slice(0, 24)}...`}
+                      </code>
+                      <button onClick={() => setRevealed((r) => ({ ...r, [monitorToken.token]: !r[monitorToken.token] }))}
+                        className="text-zinc-500 hover:text-white transition-colors p-1">
+                        {revealed[monitorToken.token] ? <EyeSlash size={14} /> : <Eye size={14} />}
                       </button>
-                      {isSuperAdmin && t.max_uses === null && confirmDelete !== t.token && (
-                        <button onClick={() => setConfirmDelete(t.token)}
-                          className="px-2 py-1 rounded-lg border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider hover:bg-red-500/10 transition-all flex items-center gap-1">
-                          <Trash size={11} /> Eliminar
-                        </button>
-                      )}
-                      {confirmDelete === t.token && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-red-400 font-bold">¿Eliminar?</span>
-                          <button onClick={() => handleDelete(t.token)} disabled={deleting}
-                            className="px-2 py-1 rounded-lg bg-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider hover:bg-red-500/30 transition-all">
-                            {deleting ? "..." : "Sí"}
-                          </button>
-                          <button onClick={() => setConfirmDelete(null)}
-                            className="px-2 py-1 rounded-lg border border-white/10 text-zinc-400 text-[10px] font-bold uppercase tracking-wider hover:border-white/30 transition-all">
-                            No
-                          </button>
-                        </div>
-                      )}
+                      <button onClick={() => copyToken(monitorToken.token)}
+                        className="text-zinc-500 hover:text-white transition-colors p-1">
+                        <Copy size={14} />
+                      </button>
                     </div>
+
+                    {/* Plan info grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-black/30 rounded-lg p-2.5 border border-white/5">
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Plan</span>
+                        <p className="text-sm font-semibold mt-0.5">{monitorToken.plan_name || "Sin plan"}</p>
+                      </div>
+                      <div className="bg-black/30 rounded-lg p-2.5 border border-white/5">
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Ciclo</span>
+                        <p className="text-sm font-semibold mt-0.5">{monitorToken.cycle || "—"}</p>
+                      </div>
+                      <div className="bg-black/30 rounded-lg p-2.5 border border-white/5">
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Vence</span>
+                        <p className={`text-sm font-semibold mt-0.5 ${monitorToken.expired ? "text-red-400" : ""}`}>
+                          {monitorToken.expires_at ? new Date(monitorToken.expires_at).toLocaleDateString("es-MX") : "—"}
+                        </p>
+                      </div>
+                      <div className="bg-black/30 rounded-lg p-2.5 border border-white/5">
+                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Conductores</span>
+                        <p className="text-sm font-semibold mt-0.5 flex items-center gap-1">
+                          <Truck size={12} /> {monitorToken.drivers_used || 0}/{monitorToken.max_drivers || "∞"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Driver usage bar */}
+                    {monitorToken.max_drivers > 0 && (
+                      <div className="mt-3">
+                        <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.min(100, driversPct)}%`,
+                              background: driversPct >= 90 ? "#FF2A2A" : driversPct >= 70 ? "#FFB800" : "#00E676",
+                            }} />
+                        </div>
+                        <p className="text-[11px] text-zinc-500 mt-1">
+                          {monitorToken.max_drivers - (monitorToken.drivers_used || 0)} lugares disponibles de {monitorToken.max_drivers}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              );
-            })
+              )}
+
+              {!monitorToken && !isSuperAdmin && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-600">
+                  <Warning size={32} className="text-zinc-700" />
+                  <p className="text-sm font-tel">No hay token de monitorista asignado a esta empresa</p>
+                  <p className="text-xs text-zinc-700">Contacta al administrador para configurar la suscripción</p>
+                </div>
+              )}
+
+              {!monitorToken && isSuperAdmin && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-600">
+                  <Key size={32} className="text-zinc-700" />
+                  <p className="text-sm font-tel">No hay token de monitorista para tu empresa</p>
+                  <button onClick={() => setCreateMode("monitorista")}
+                    className="mt-2 px-4 py-2 rounded-lg bg-white text-black font-bold text-sm hover:bg-zinc-200 transition-all flex items-center gap-2">
+                    <Plus size={14} weight="bold" /> Crear primer token
+                  </button>
+                </div>
+              )}
+
+              {/* ── Conductor Tokens Section ── */}
+              {monitorToken && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-heading font-bold text-sm flex items-center gap-2">
+                      <Truck size={16} className="text-[#007AFF]" />
+                      Tokens de conductores ({conductorTokens.length})
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      {/* Search */}
+                      <div className="relative">
+                        <MagnifyingGlass size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Buscar..."
+                          className="w-32 bg-[#0d0d0d] border border-white/10 rounded-lg pl-7 pr-2 py-1.5 text-[11px] text-white outline-none focus:border-white/30 transition-all placeholder-zinc-600 font-tel" />
+                      </div>
+                      {/* Filter active */}
+                      <select value={filterActive} onChange={(e) => setFilterActive(e.target.value)}
+                        className="bg-[#0d0d0d] border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-white outline-none focus:border-white/30 transition-all font-tel">
+                        <option value="all">Todos</option>
+                        <option value="active">Activos</option>
+                        <option value="inactive">Inactivos</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {filteredConductors.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 gap-2 text-zinc-600">
+                      <Truck size={24} className="text-zinc-700" />
+                      <p className="text-sm font-tel">
+                        {conductorTokens.length === 0
+                          ? "No hay tokens de conductores generados"
+                          : "Ningún token coincide con los filtros"}
+                      </p>
+                      {canCreate && conductorTokens.length === 0 && (
+                        <button onClick={() => { setForm((f) => ({ ...f, parent_token: monitorToken.token })); setCreateMode("conductor"); }}
+                          className="mt-2 px-3 py-1.5 rounded-lg bg-[#007AFF] text-white font-bold text-[11px] hover:bg-[#3399FF] transition-all flex items-center gap-1.5">
+                          <Plus size={12} weight="bold" /> Generar tokens
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {filteredConductors.map((t) => {
+                        const inUse = !!t.device_id || !!t.driver_id;
+                        return (
+                          <div key={t.token}
+                            className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                              t.active ? "border-white/10 hover:border-white/20" : "border-white/5 opacity-50"
+                            }`}>
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${inUse ? "bg-emerald-400" : "bg-zinc-500"}`} />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-tel font-semibold text-sm">{t.name || "Sin nombre"}</span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                                    inUse ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-700/50 text-zinc-400"
+                                  }`}>
+                                    {inUse ? "En uso" : "Disponible"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <code className="font-tel text-[11px] text-zinc-400 bg-black/30 px-2 py-0.5 rounded">
+                                    {revealed[t.token] ? t.token : `${t.token.slice(0, 16)}...`}
+                                  </code>
+                                  <button onClick={() => setRevealed((r) => ({ ...r, [t.token]: !r[t.token] }))}
+                                    className="text-zinc-500 hover:text-white transition-colors">
+                                    {revealed[t.token] ? <EyeSlash size={12} /> : <Eye size={12} />}
+                                  </button>
+                                  <button onClick={() => copyToken(t.token)}
+                                    className="text-zinc-500 hover:text-white transition-colors">
+                                    <Copy size={12} />
+                                  </button>
+                                </div>
+                                {t.unit_info && (
+                                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                                    {t.unit_info.name} · {t.unit_info.plate} {t.unit_info.driver_name ? `· ${t.unit_info.driver_name}` : ""}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button onClick={() => toggleToken(t.token)}
+                                className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all ${
+                                  t.active
+                                    ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                                    : "border-zinc-700 text-zinc-500"
+                                }`}>
+                                {t.active ? "Activo" : "Inactivo"}
+                              </button>
+                              {isSuperAdmin && confirmDelete !== t.token && (
+                                <button onClick={() => setConfirmDelete(t.token)}
+                                  className="px-2 py-1 rounded-lg border border-red-500/20 text-red-400 text-[10px] font-bold uppercase tracking-wider hover:bg-red-500/10 transition-all">
+                                  <Trash size={10} /> 
+                                </button>
+                              )}
+                              {confirmDelete === t.token && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-red-400 font-bold">¿Eliminar?</span>
+                                  <button onClick={() => handleDelete(t.token)} disabled={deleting}
+                                    className="px-2 py-1 rounded-lg bg-red-500/20 text-red-400 text-[10px] font-bold hover:bg-red-500/30 transition-all">
+                                    {deleting ? "..." : "Sí"}
+                                  </button>
+                                  <button onClick={() => setConfirmDelete(null)}
+                                    className="px-2 py-1 rounded-lg border border-white/10 text-zinc-400 text-[10px] font-bold hover:border-white/30 transition-all">
+                                    No
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        {createMode && (
+        {/* ── Create Forms ── */}
+        {createMode && canCreate && (
           <div className="border-t border-white/10 p-4 shrink-0 bg-black/20">
             <form onSubmit={createToken} className="flex flex-wrap items-end gap-3">
               {createMode === "monitorista" ? (
@@ -290,7 +426,7 @@ export default function TokenManager({ onClose, userRole }) {
                   <label className="text-xs text-zinc-400 font-medium min-w-[160px]">
                     Nombre (opcional)
                     <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                      placeholder="Ej: Cliente ABC"
+                      placeholder="Ej: Mi Empresa"
                       className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-white/40 transition-all font-tel" />
                   </label>
                   <label className="text-xs text-zinc-400 font-medium w-28">
@@ -311,20 +447,11 @@ export default function TokenManager({ onClose, userRole }) {
                       ))}
                     </select>
                   </label>
-                  <label className="text-xs text-zinc-400 font-medium w-20">
-                    Máx usos
-                    <input value={form.max_uses} onChange={(e) => setForm((f) => ({ ...f, max_uses: e.target.value }))}
-                      placeholder="∞"
-                      className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-white/40 transition-all font-tel" />
-                  </label>
                   <div className="text-xs text-zinc-400 pb-1">
                     <div className="font-bold text-sm text-white">{selectedPlan?.name}</div>
                     <div className="flex items-center gap-1"><Truck size={12} /> {selectedPlan?.devices} conductores</div>
                     <div className="flex items-center gap-1 text-[#00E676]">
                       <CurrencyCircleDollar size={12} /> ${price.toLocaleString("es-MX")} MXN / {form.cycle.toLowerCase()}
-                    </div>
-                    <div className="flex items-center gap-1 text-zinc-500">
-                      <Clock size={12} /> Vence en {form.cycle === "Semanal" ? "7 días" : form.cycle === "Mensual" ? "30 días" : form.cycle === "Bimestral" ? "60 días" : form.cycle === "Trimestral" ? "90 días" : "365 días"}
                     </div>
                   </div>
                   <button type="submit"
@@ -338,16 +465,11 @@ export default function TokenManager({ onClose, userRole }) {
                     Token monitorista (plan padre)
                     <select value={form.parent_token || ""} onChange={(e) => setForm((f) => ({ ...f, parent_token: e.target.value }))}
                       className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-white/40 transition-all font-tel">
-                      {monitorTokens.map((m) => {
-                        const used = m.drivers_used || 0;
-                        const maxD = m.max_drivers || 0;
-                        const remaining = maxD - used;
-                        return (
-                          <option key={m.token} value={m.token} disabled={remaining <= 0}>
-                            {m.name} — {used}/{maxD} conductores {remaining > 0 ? `(${remaining} disponibles)` : "(completo)"}
-                          </option>
-                        );
-                      })}
+                      {monitorToken && (
+                        <option value={monitorToken.token}>
+                          {monitorToken.name} — {(monitorToken.drivers_used || 0)}/{monitorToken.max_drivers || "∞"} conductores
+                        </option>
+                      )}
                     </select>
                   </label>
                   <label className="text-xs text-zinc-400 font-medium w-28">

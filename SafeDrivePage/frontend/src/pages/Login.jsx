@@ -1,27 +1,116 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { formatApiError } from "@/lib/api";
+import api, { formatApiError } from "@/lib/api";
 import { ShieldCheck, ArrowLeft, Eye, EyeSlash, Lock, Envelope, SignIn, Key, CheckCircle } from "@phosphor-icons/react";
 
 function TokenGate({ onVerified }) {
-  const { verifySiteToken } = useAuth();
+  const { verifySiteToken, clearSiteToken } = useAuth();
   const [tokenInput, setTokenInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [tokenInfo, setTokenInfo] = useState(null);
+  const [driverTokens, setDriverTokens] = useState([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
 
   const submitToken = async (e) => {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      await verifySiteToken(tokenInput.trim());
-      onVerified();
+      const info = await verifySiteToken(tokenInput.trim());
+      setTokenInfo(info);
+      setVerified(true);
+      // Load associated driver tokens
+      setLoadingDrivers(true);
+      try {
+        const { data } = await api.get(`/auth/monitor-token-drivers/${tokenInput.trim()}`);
+        setDriverTokens(data.tokens || []);
+      } catch {}
+      setLoadingDrivers(false);
     } catch (err) {
       setError(formatApiError(err.response?.data?.detail) || err.message);
     } finally {
       setBusy(false);
     }
   };
+
+  const clearAndRetry = () => {
+    clearSiteToken();
+    setVerified(false);
+    setTokenInfo(null);
+    setDriverTokens([]);
+    setTokenInput("");
+  };
+
+  if (verified) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center px-4 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "44px 44px" }} />
+        <div className="w-full max-w-md relative fade-up">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-[#FF2A2A]/10 rounded-xl flex items-center justify-center">
+              <ShieldCheck size={24} weight="fill" className="text-[#FF2A2A]" />
+            </div>
+            <div>
+              <span className="font-heading font-black text-xl tracking-tight text-white block">SafeDrive<span className="text-[#FF2A2A]">GPS</span></span>
+              <span className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] font-tel">Token Verificado</span>
+            </div>
+          </div>
+
+          <div className="card-glass-strong p-6 rounded-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                <CheckCircle size={18} weight="fill" className="text-emerald-400" />
+              </div>
+              <div>
+                <h2 className="font-heading font-bold text-lg">{tokenInfo?.name || "Token verificado"}</h2>
+                <p className="text-zinc-500 text-xs">Token de monitorista validado correctamente</p>
+              </div>
+            </div>
+
+            {loadingDrivers ? (
+              <div className="flex items-center justify-center py-4">
+                <span className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              </div>
+            ) : driverTokens.length > 0 ? (
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-zinc-400 mb-2">
+                  Tokens de conductores disponibles ({driverTokens.length})
+                </h3>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {driverTokens.map((t) => (
+                    <div key={t.token} className="flex items-center justify-between bg-zinc-800/50 rounded-lg px-3 py-2 border border-zinc-700/50">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-zinc-200 truncate">{t.name || "Sin nombre"}</p>
+                        <code className="text-[10px] text-zinc-500 font-mono">{t.token.slice(0, 16)}...</code>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.device_id ? 'bg-emerald-500/15 text-emerald-400' : 'bg-zinc-700/50 text-zinc-400'}`}>
+                        {t.device_id ? 'Vinculado' : 'Disponible'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500 text-center py-2">No hay tokens de conductores generados aún</p>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <button onClick={onVerified}
+                className="flex-1 bg-white text-black font-bold py-2.5 rounded-xl hover:bg-zinc-200 transition-all text-sm">
+                Continuar al inicio de sesión
+              </button>
+              <button onClick={clearAndRetry}
+                className="px-3 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs border border-zinc-700/50 transition-all">
+                Usar otro token
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center px-4 relative overflow-hidden">
@@ -51,7 +140,7 @@ function TokenGate({ onVerified }) {
             </div>
             <div>
               <h1 className="font-heading font-black text-lg tracking-tight">Token de Acceso</h1>
-              <p className="text-zinc-500 text-xs">Ingresa el token proporcionado por el proveedor.</p>
+              <p className="text-zinc-500 text-xs">Ingresa el token proporcionado por tu proveedor.</p>
             </div>
           </div>
 

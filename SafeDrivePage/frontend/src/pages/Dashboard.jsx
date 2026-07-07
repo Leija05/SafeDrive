@@ -10,6 +10,7 @@ import {
   ShieldCheck, Truck, Warning, MapPinLine, Bridge, WifiSlash, SignOut,
   Broadcast, ChatCircleDots, Siren, NavigationArrow, X, PaperPlaneRight, Gauge, UserPlus, PencilSimple, FloppyDisk, Crosshair, Pulse, ClockCounterClockwise,
   ArrowsIn, CellSignalHigh, Eye, CheckCircle, Article, Bell, BellRinging, Key,
+  ListBullets, ArrowsLeftRight, CaretDown, CaretUp,
 } from "@phosphor-icons/react";
 
 const STATUS_LABEL = {
@@ -108,6 +109,9 @@ export default function Dashboard() {
   const [showNotif, setShowNotif] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState([]);
   const [showTokenManager, setShowTokenManager] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [showUnitManager, setShowUnitManager] = useState(false);
+  const [assignForm, setAssignForm] = useState({ user_id: "", unit_id: "" });
   const wsRef = useRef(null);
   const chatEndRef = useRef(null);
   const notifRef = useRef(null);
@@ -256,6 +260,30 @@ export default function Dashboard() {
     toast.success("Ruta asignada en tiempo real");
   };
 
+  const loadUsersForAssignment = async () => {
+    try {
+      const { data } = await api.get("/users");
+      setAllUsers(data.filter((u) => u.role === "conductor" || u.role === "driver"));
+    } catch {}
+  };
+
+  const assignUnitToUser = async () => {
+    if (!assignForm.user_id || !assignForm.unit_id) {
+      toast.error("Selecciona un conductor y una unidad");
+      return;
+    }
+    try {
+      await api.put(`/users/${assignForm.user_id}/assign-unit`, { unit_id: assignForm.unit_id });
+      toast.success("Unidad asignada correctamente");
+      setAssignForm({ user_id: "", unit_id: "" });
+      loadAll();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al asignar unidad");
+    }
+  };
+
+  const availableUnits = Object.values(units).filter((u) => !u.driver_id);
+
   return (
     <div className="min-h-screen bg-[#050505] text-white">
       <header className="sticky top-0 z-[1000] bg-black/70 backdrop-blur-2xl border-b border-white/[0.04]">
@@ -290,6 +318,11 @@ export default function Dashboard() {
                 <span className="hidden sm:inline">Admin</span>
               </button>
             )}
+            <button onClick={() => { setShowUnitManager(true); loadUsersForAssignment(); }}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
+              <ArrowsLeftRight size={14} />
+              <span className="hidden sm:inline">Unidades</span>
+            </button>
             <button onClick={() => setShowTokenManager(true)}
               className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-all border border-transparent hover:border-white/10">
               <Key size={14} />
@@ -728,7 +761,7 @@ export default function Dashboard() {
 
       {userModal && (
         <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
-          <div className="card-glass-strong w-full max-w-2xl p-6 rounded-2xl fade-up" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
+          <div className="card-glass-strong w-full max-w-3xl p-6 rounded-2xl fade-up max-h-[90vh] overflow-y-auto" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
             <div className="flex justify-between items-center mb-6">
               <h2 className="font-heading font-bold text-lg flex items-center gap-2">
                 {userModal === "create" ? <UserPlus size={18} weight="fill" /> : <PencilSimple size={18} weight="fill" />}
@@ -738,8 +771,32 @@ export default function Dashboard() {
                 <X size={16} />
               </button>
             </div>
+
+            {/* Unit availability list */}
+            <div className="mb-6 bg-zinc-900/50 rounded-xl border border-white/10 p-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-2">
+                <Truck size={14} /> Unidades disponibles ({availableUnits.length} de {unitList.length})
+              </h3>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                {unitList.map((u) => {
+                  const libre = !u.driver_id;
+                  return (
+                    <div key={u.id} className={`text-[11px] font-tel p-2 rounded-lg border text-center transition-all ${
+                      libre
+                        ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
+                        : "border-zinc-800 bg-zinc-900/50 text-zinc-600"
+                    }`}>
+                      <div className="font-semibold">{u.name}</div>
+                      <div className={libre ? "text-emerald-400/70" : "text-zinc-600"}>{u.plate}</div>
+                      <div className="text-[9px] mt-0.5">{libre ? "Disponible" : (u.driver_name || "Ocupado")}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[['name','Unidad'],['driver_name','Nombre'],['plate','Placas'],['imei','IMEI'],['email','Correo'],['password','Contraseña'],['phone','Teléfono']].map(([key,label]) => (
+              {[['name','Unidad'],['driver_name','Nombre conductor'],['plate','Placas'],['imei','IMEI'],['email','Correo'],['password','Contraseña'],['phone','Teléfono']].map(([key,label]) => (
                 <label key={key} className="text-xs text-zinc-400 font-medium">
                   {label}
                   <input
@@ -760,6 +817,99 @@ export default function Dashboard() {
               <button onClick={() => setUserModal(null)} className="px-4 py-2.5 rounded-xl border border-white/10 text-zinc-300 hover:border-white/30 transition-all text-sm">Cancelar</button>
               <button onClick={saveUser} className="px-5 py-2.5 rounded-xl bg-white text-black font-bold flex items-center gap-2 hover:bg-zinc-200 transition-all text-sm">
                 <FloppyDisk size={16} weight="fill" /> Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Unit Manager Modal ── */}
+      {showUnitManager && (
+        <div className="fixed inset-0 z-[2000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 fade-in">
+          <div className="card-glass-strong w-full max-w-2xl p-6 rounded-2xl fade-up max-h-[90vh] overflow-y-auto" style={{ boxShadow: "0 25px 80px rgba(0,0,0,0.6)" }}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="font-heading font-bold text-lg flex items-center gap-2">
+                <ArrowsLeftRight size={18} weight="fill" /> Gestión de Unidades
+              </h2>
+              <button onClick={() => setShowUnitManager(false)} className="w-8 h-8 rounded-lg border border-white/[0.08] flex items-center justify-center text-zinc-400 hover:text-white hover:border-white/30 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* All units with status */}
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-zinc-300 mb-3 flex items-center gap-2">
+                <ListBullets size={16} /> Todas las unidades ({unitList.length})
+              </h3>
+              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                {unitList.map((u) => {
+                  const libre = !u.driver_id;
+                  return (
+                    <div key={u.id} className="flex items-center justify-between bg-zinc-800/30 hover:bg-zinc-800/50 rounded-xl px-3.5 py-2.5 transition-colors border border-zinc-800/40">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold shrink-0 border ${
+                          libre
+                            ? "bg-emerald-700/30 text-emerald-400 border-emerald-500/20"
+                            : "bg-zinc-700/30 text-zinc-500 border-zinc-700/40"
+                        }`}>
+                          {u.name?.slice(0, 2) || "UN"}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{u.name} <span className="text-zinc-500 font-normal">{u.plate}</span></p>
+                          {u.driver_name ? (
+                            <p className="text-xs text-zinc-500 truncate">{u.driver_name}</p>
+                          ) : (
+                            <p className="text-xs text-emerald-500/70 italic truncate">Disponible</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border shrink-0 ${
+                        libre
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+                          : "bg-zinc-700/30 text-zinc-400 border-zinc-700/40"
+                      }`}>
+                        {libre ? "Libre" : "En uso"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick assign unit to driver */}
+            <div className="bg-zinc-900/50 rounded-xl border border-white/10 p-4">
+              <h3 className="text-sm font-bold text-zinc-300 mb-3 flex items-center gap-2">
+                <ArrowsLeftRight size={16} className="text-[#007AFF]" /> Asignar unidad a conductor existente
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="text-xs text-zinc-400 font-medium">
+                  Conductor
+                  <select value={assignForm.user_id} onChange={(e) => setAssignForm((f) => ({ ...f, user_id: e.target.value }))}
+                    className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel">
+                    <option value="">Seleccionar conductor...</option>
+                    {allUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} · {u.email} {u.unit ? `(${u.unit.name})` : "(sin unidad)"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs text-zinc-400 font-medium">
+                  Unidad
+                  <select value={assignForm.unit_id} onChange={(e) => setAssignForm((f) => ({ ...f, unit_id: e.target.value }))}
+                    className="mt-1 w-full bg-[#0d0d0d] border border-white/10 rounded-xl px-3 py-2.5 text-white text-sm outline-none focus:border-white/30 transition-all font-tel">
+                    <option value="">Seleccionar unidad...</option>
+                    {unitList.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} · {u.plate} {u.driver_name ? `(${u.driver_name})` : "(disponible)"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <button onClick={assignUnitToUser}
+                className="mt-3 px-4 py-2.5 rounded-xl bg-[#007AFF] text-white font-bold text-sm hover:bg-[#3399FF] transition-all flex items-center gap-2">
+                <ArrowsLeftRight size={15} weight="bold" /> Asignar unidad
               </button>
             </div>
           </div>

@@ -302,8 +302,8 @@ async def register(body: RegisterIn, request: Request, user: dict = Depends(requ
     if role in ("monitorista", "admin") and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Solo SuperAdmin puede crear monitoristas")
 
-    # Inherit company_id from creator
-    company_id = get_company_id(user)
+    # Inherit company_id from creator (superadmin can override via body.company_id)
+    company_id = body.company_id or get_company_id(user)
 
     uid = str(uuid.uuid4())
     sid = str(uuid.uuid4())
@@ -995,8 +995,9 @@ async def company_token_overview(user: dict = Depends(require_admin)):
     Monitoristas use this for read-only token view."""
     db = get_db()
     company_id = get_company_id(user)
+
     if not company_id:
-        raise HTTPException(status_code=400, detail="SuperAdmin no tiene empresa asociada")
+        return {"monitor_token": None, "conductor_tokens": [], "total_drivers_used": 0, "max_drivers": 0}
 
     # Get the unique monitorista token
     monitor_token = await db.site_tokens.find_one(

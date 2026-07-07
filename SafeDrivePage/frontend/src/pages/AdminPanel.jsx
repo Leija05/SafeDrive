@@ -9,7 +9,8 @@ import {
   Plus, ChartBar, Clock, CheckCircle, XCircle, Eye, EyeSlash,
   Envelope, Lock, Phone, MapPin, IdentificationBadge, UsersThree,
   WarningCircle, CurrencyCircleDollar, Gear, ArrowLeft, PencilSimple,
-  ArrowsLeftRight, Warning, Tag,
+  ArrowsLeftRight, Warning, Tag, Copy, Monitor, MagnifyingGlass, FunnelSimple,
+  CalendarBlank, ArrowClockwise,
 } from "@phosphor-icons/react";
 
 const PLANS = [
@@ -208,6 +209,9 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
   const [visible, setVisible] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [showCreateUnit, setShowCreateUnit] = useState(false);
+  const [showTokenManagement, setShowTokenManagement] = useState(false);
+  const [showCreateDriver, setShowCreateDriver] = useState(false);
+  const [showAssignDriver, setShowAssignDriver] = useState(false);
   useEffect(() => { setTimeout(() => setVisible(true), 100 + index * 80); }, [index]);
 
   const handleToggleActive = async () => {
@@ -394,6 +398,12 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
                       <User size={16} className="text-blue-400" />
                       Conductores ({users.filter((u) => u.role === "conductor" || u.role === "driver").length})
                     </h4>
+                    <button onClick={() => setShowCreateDriver(true)}
+                      className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg border border-blue-500/20 transition-all font-semibold"
+                    >
+                      <Plus size={12} weight="bold" />
+                      Registrar
+                    </button>
                   </div>
                   <div className="space-y-1.5">
                     {users.filter((u) => u.role === "conductor" || u.role === "driver").map((u) => (
@@ -412,13 +422,21 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
                       <Truck size={16} className="text-emerald-400" />
                       Unidades ({units.length}) <span className="text-zinc-600 font-normal">({availableUnits.length} disponibles)</span>
                     </h4>
-                    <button
-                      onClick={() => setShowCreateUnit(true)}
-                      className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/20 transition-all font-semibold"
-                    >
-                      <Plus size={12} weight="bold" />
-                      Nueva unidad
-                    </button>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => setShowAssignDriver(true)}
+                        className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 rounded-lg border border-violet-500/20 transition-all font-semibold"
+                      >
+                        <ArrowsLeftRight size={12} weight="bold" />
+                        Asignar
+                      </button>
+                      <button
+                        onClick={() => setShowCreateUnit(true)}
+                        className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/20 transition-all font-semibold"
+                      >
+                        <Plus size={12} weight="bold" />
+                        Nueva unidad
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     {units.map((u) => (
@@ -430,7 +448,12 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-3 pt-2 border-t border-zinc-800/40">
+              <div className="flex items-center gap-3 pt-2 border-t border-zinc-800/40 flex-wrap">
+                <button onClick={() => setShowTokenManagement(true)}
+                  className="flex items-center gap-2 text-xs px-3.5 py-2 rounded-xl font-semibold bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all"
+                >
+                  <Key size={14} /> Gestionar tokens
+                </button>
                 <button
                   onClick={handleToggleActive}
                   className={`flex items-center gap-2 text-xs px-3.5 py-2 rounded-xl font-semibold transition-all ${
@@ -466,6 +489,32 @@ function CompanyCard({ company, expanded, detail, onToggle, onRefresh, index }) 
           companyId={company.id}
           onClose={() => setShowCreateUnit(false)}
           onSaved={() => { setShowCreateUnit(false); onRefresh(); }}
+        />
+      )}
+      {showTokenManagement && (
+        <TokenManagementModal
+          companyId={company.id}
+          companyName={company.name}
+          onClose={() => setShowTokenManagement(false)}
+          onSaved={() => { setShowTokenManagement(false); onRefresh(); }}
+        />
+      )}
+      {showCreateDriver && (
+        <CreateDriverModal
+          companyId={company.id}
+          companyName={company.name}
+          onClose={() => setShowCreateDriver(false)}
+          onSaved={() => { setShowCreateDriver(false); onRefresh(); }}
+        />
+      )}
+      {showAssignDriver && (
+        <AssignDriverModal
+          companyId={company.id}
+          companyName={company.name}
+          units={units}
+          drivers={users.filter((u) => u.role === "conductor" || u.role === "driver")}
+          onClose={() => setShowAssignDriver(false)}
+          onSaved={() => { setShowAssignDriver(false); onRefresh(); }}
         />
       )}
     </div>
@@ -852,9 +901,12 @@ function CreateCompanyModal({ onClose }) {
   );
 }
 
-/* ── Create Unit Modal ── */
+/* ── Enhanced Create Unit Modal ── */
+const MARCA_OPTIONS = ["Kenworth", "Freightliner", "International", "Dina", "Volvo", "Mercedes-Benz", "Scania", "Peterbilt", "Otro"];
+const TIPO_OPTIONS = ["Tractocamion", "Caja seca", "Refrigerado", "Plataforma", "Tanque", "Volteo", "Grua", "Pickup", "SUV", "Otro"];
+
 function CreateUnitModal({ companyId, onClose, onSaved }) {
-  const [form, setForm] = useState({ name: "", plate: "", imei: "", color: "#00E676" });
+  const [form, setForm] = useState({ name: "", plate: "", marca: "", modelo: "", anio: "", tipo: "", imei: "", color: "#00E676" });
   const [busy, setBusy] = useState(false);
 
   const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
@@ -867,7 +919,8 @@ function CreateUnitModal({ companyId, onClose, onSaved }) {
     }
     setBusy(true);
     try {
-      await api.post("/units", { ...form, company_id: companyId });
+      const payload = { ...form, company_id: companyId, anio: form.anio ? Number(form.anio) : undefined };
+      await api.post("/units", payload);
       toast.success("Unidad creada correctamente");
       onSaved();
     } catch (err) {
@@ -877,7 +930,7 @@ function CreateUnitModal({ companyId, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl shadow-black/50 animate-fadeIn">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50 animate-fadeIn">
         <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800/60">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
@@ -885,7 +938,7 @@ function CreateUnitModal({ companyId, onClose, onSaved }) {
             </div>
             <div>
               <h2 className="text-lg font-bold">Nueva unidad</h2>
-              <p className="text-xs text-zinc-500">Registra una nueva unidad con placas</p>
+              <p className="text-xs text-zinc-500">Registra una nueva unidad con todos los datos</p>
             </div>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 flex items-center justify-center transition-colors border border-zinc-700/50">
@@ -893,9 +946,19 @@ function CreateUnitModal({ companyId, onClose, onSaved }) {
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <InputField icon={IdentificationBadge} label="Nombre de la unidad *" name="name" value={form.name} onChange={handleChange} placeholder="NL-01" />
-          <InputField icon={Gear} label="Placas *" name="plate" value={form.plate} onChange={handleChange} placeholder="XXX-00-00" />
-          <InputField icon={Gear} label="IMEI (opcional)" name="imei" value={form.imei} onChange={handleChange} placeholder="Identificador del dispositivo GPS" />
+          <div className="grid grid-cols-2 gap-3">
+            <InputField icon={IdentificationBadge} label="Nombre de la unidad *" name="name" value={form.name} onChange={handleChange} placeholder="NL-01" />
+            <InputField icon={Gear} label="Placas *" name="plate" value={form.plate} onChange={handleChange} placeholder="XXX-00-00" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <SelectField label="Marca" name="marca" value={form.marca} onChange={handleChange} options={MARCA_OPTIONS} placeholder="Seleccionar marca" />
+            <InputField icon={Tag} label="Modelo" name="modelo" value={form.modelo} onChange={handleChange} placeholder="Ej: T680" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <InputField icon={CalendarBlank} label="Anio" name="anio" type="number" min="1990" max="2026" value={form.anio} onChange={handleChange} placeholder="Ej: 2024" />
+            <SelectField label="Tipo" name="tipo" value={form.tipo} onChange={handleChange} options={TIPO_OPTIONS} placeholder="Seleccionar tipo" />
+          </div>
+          <InputField icon={Gear} label="IMEI / Dispositivo GPS (opcional)" name="imei" value={form.imei} onChange={handleChange} placeholder="Identificador del dispositivo GPS" />
           <div>
             <label className="text-xs text-zinc-400 mb-1.5 block font-medium">Color en mapa</label>
             <input type="color" name="color" value={form.color} onChange={handleChange} className="w-full h-10 rounded-xl bg-zinc-800/80 border border-zinc-700/60 cursor-pointer" />
@@ -914,7 +977,512 @@ function CreateUnitModal({ companyId, onClose, onSaved }) {
   );
 }
 
-function InputField({ icon: Icon, label, name, type = "text", value, onChange, placeholder }) {
+/* ── Create Driver Modal (separado de unidad) ── */
+function CreateDriverModal({ companyId, companyName, onClose, onSaved }) {
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+      toast.error("Nombre, correo y contrasena son obligatorios");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post("/auth/register", {
+        ...form,
+        role: "conductor",
+        company_id: companyId,
+      });
+      toast.success(`Conductor ${form.name} creado correctamente`);
+      onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al crear conductor");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl shadow-black/50 animate-fadeIn">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <User size={20} weight="fill" className="text-black" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Registrar conductor</h2>
+              <p className="text-xs text-zinc-500">{companyName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 flex items-center justify-center transition-colors border border-zinc-700/50">
+            <XCircle size={16} className="text-zinc-400" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <InputField icon={IdentificationBadge} label="Nombre completo *" name="name" value={form.name} onChange={handleChange} placeholder="Juan Perez" />
+          <InputField icon={Envelope} label="Correo electronico *" name="email" type="email" value={form.email} onChange={handleChange} placeholder="conductor@empresa.com" />
+          <div className="relative">
+            <InputField icon={Lock} label="Contrasena *" name="password" type={showPw ? "text" : "password"} value={form.password} onChange={handleChange} placeholder="••••••••" />
+            <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 bottom-2.5 text-zinc-500 hover:text-zinc-300 transition-colors">
+              {showPw ? <EyeSlash size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+          <InputField icon={Phone} label="Telefono (opcional)" name="phone" value={form.phone} onChange={handleChange} placeholder="+52 867 000 0000" />
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 text-xs text-zinc-400">
+            <p className="font-semibold text-blue-400 mb-1">Solo datos del conductor</p>
+            <p>Despues de crear el conductor, puedes asignarle una unidad desde Gestion de Unidades.</p>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/40">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm transition-colors border border-zinc-700/50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={busy} className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50">
+              {busy ? "Creando..." : "Crear conductor"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ── Assign Driver to Unit Modal ── */
+function AssignDriverModal({ companyId, companyName, units, drivers, onClose, onSaved }) {
+  const [form, setForm] = useState({ user_id: "", unit_id: "" });
+  const [busy, setBusy] = useState(false);
+  const freeUnits = units.filter((u) => !u.driver_id);
+  const freeDrivers = drivers.filter((d) => !units.find((u) => u.driver_id === d.id));
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.user_id || !form.unit_id) {
+      toast.error("Selecciona un conductor y una unidad");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.put(`/users/${form.user_id}/assign-unit`, { unit_id: form.unit_id });
+      toast.success("Unidad asignada correctamente");
+      onSaved();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al asignar unidad");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-md shadow-2xl shadow-black/50 animate-fadeIn">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-violet-400 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <ArrowsLeftRight size={20} weight="fill" className="text-black" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Asignar unidad</h2>
+              <p className="text-xs text-zinc-500">{companyName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 flex items-center justify-center transition-colors border border-zinc-700/50">
+            <XCircle size={16} className="text-zinc-400" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="text-xs text-zinc-400 mb-1.5 block font-medium flex items-center gap-1.5">
+              <User size={13} className="text-blue-400" /> Conductor
+            </label>
+            <select name="user_id" value={form.user_id} onChange={handleChange}
+              className="w-full bg-zinc-800/80 border border-zinc-700/60 focus:border-violet-500/50 rounded-xl px-3 py-2.5 text-sm outline-none transition-all text-white">
+              <option value="">Seleccionar conductor...</option>
+              {freeDrivers.map((d) => (
+                <option key={d.id} value={d.id}>{d.name} ({d.email})</option>
+              ))}
+              {freeDrivers.length === 0 && <option value="" disabled>No hay conductores disponibles</option>}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-zinc-400 mb-1.5 block font-medium flex items-center gap-1.5">
+              <Truck size={13} className="text-emerald-400" /> Unidad
+            </label>
+            <select name="unit_id" value={form.unit_id} onChange={handleChange}
+              className="w-full bg-zinc-800/80 border border-zinc-700/60 focus:border-violet-500/50 rounded-xl px-3 py-2.5 text-sm outline-none transition-all text-white">
+              <option value="">Seleccionar unidad...</option>
+              {freeUnits.map((u) => (
+                <option key={u.id} value={u.id}>{u.name} · {u.plate}{u.marca ? ` (${u.marca})` : ""}</option>
+              ))}
+              {freeUnits.length === 0 && <option value="" disabled>No hay unidades disponibles</option>}
+            </select>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/40">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm transition-colors border border-zinc-700/50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={busy || !form.user_id || !form.unit_id}
+              className="px-5 py-2.5 bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-400 hover:to-violet-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-violet-500/20 disabled:opacity-50">
+              {busy ? "Asignando..." : "Asignar unidad"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ── Token Management Modal (visual generate_token) ── */
+function TokenManagementModal({ companyId, companyName, onClose, onSaved }) {
+  const [tokenInfo, setTokenInfo] = useState(null);
+  const [planId, setPlanId] = useState("plata");
+  const [cycle, setCycle] = useState("Mensual");
+  const [busy, setBusy] = useState(false);
+  const [generatedToken, setGeneratedToken] = useState(null);
+  const [driverCount, setDriverCount] = useState(1);
+  const [reusable, setReusable] = useState(false);
+  const [generatingDrivers, setGeneratingDrivers] = useState(false);
+  const [driverTokens, setDriverTokens] = useState([]);
+  const [revealed, setRevealed] = useState({});
+  const [tab, setTab] = useState("token");
+
+  const PLANS = [
+    { id: "bronce", name: "Plan Bronce", devices: 10 },
+    { id: "plata", name: "Plan Plata", devices: 25 },
+    { id: "oro", name: "Plan Oro", devices: 50 },
+  ];
+
+  useEffect(() => {
+    loadTokenInfo();
+  }, []);
+
+  const loadTokenInfo = async () => {
+    try {
+      const { data } = await api.get(`/auth/companies/${companyId}`);
+      setTokenInfo(data.monitor_token || null);
+    } catch {}
+  };
+
+  const copyToken = (tok) => {
+    navigator.clipboard?.writeText(tok);
+    toast.success("Token copiado");
+  };
+
+  const handleAssignToken = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/auth/companies/${companyId}/assign-token`, {
+        name: companyName,
+        plan_id: planId,
+        cycle: cycle,
+      });
+      setGeneratedToken(data);
+      toast.success("Token de monitorista generado");
+      await loadTokenInfo();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al generar token");
+    } finally { setBusy(false); }
+  };
+
+  const handleGenerateDrivers = async () => {
+    if (!tokenInfo?.token) {
+      toast.error("No hay token de monitorista activo");
+      return;
+    }
+    setGeneratingDrivers(true);
+    try {
+      const { data } = await api.post("/auth/driver-tokens", {
+        count: Number(driverCount),
+        parent_token: tokenInfo.token,
+        max_uses: reusable ? null : 1,
+      });
+      setDriverTokens(data.tokens || []);
+      toast.success(`${data.tokens.length} token(s) de conductor generados`);
+      await loadTokenInfo();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Error al generar tokens");
+    } finally { setGeneratingDrivers(false); }
+  };
+
+  const selectedPlan = PLANS.find((p) => p.id === planId);
+  const driversUsed = tokenInfo?.drivers_used || 0;
+  const maxDrivers = tokenInfo?.max_drivers || 0;
+  const driversAvail = maxDrivers - driversUsed;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50 animate-fadeIn">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800/60">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <Key size={20} weight="fill" className="text-black" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Gestion de tokens</h2>
+              <p className="text-xs text-zinc-500">{companyName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 flex items-center justify-center transition-colors border border-zinc-700/50">
+            <XCircle size={16} className="text-zinc-400" />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-zinc-800/60 px-6">
+          <button onClick={() => setTab("token")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${tab === "token" ? "border-amber-400 text-amber-400" : "border-transparent text-zinc-500 hover:text-zinc-300"}`}>
+            <Key size={14} className="inline mr-1.5" />Token monitorista
+          </button>
+          <button onClick={() => setTab("drivers")} className={`px-4 py-3 text-sm font-medium border-b-2 transition-all ${tab === "drivers" ? "border-amber-400 text-amber-400" : "border-transparent text-zinc-500 hover:text-zinc-300"}`}>
+            <User size={14} className="inline mr-1.5" />Tokens conductores
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {tab === "token" && (
+            <>
+              {tokenInfo ? (
+                <div className={`p-4 rounded-xl border ${tokenInfo.active && !tokenInfo.expired ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Monitor size={18} className={tokenInfo.active ? "text-emerald-400" : "text-red-400"} />
+                      <span className="font-semibold">{tokenInfo.plan_name || "Plan"}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${tokenInfo.active && !tokenInfo.expired ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                        {tokenInfo.active && !tokenInfo.expired ? "ACTIVO" : tokenInfo.expired ? "VENCIDO" : "INACTIVO"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-xs mb-3">
+                    <div className="bg-zinc-800/30 rounded-lg p-2.5">
+                      <span className="text-zinc-500">Conductores</span>
+                      <p className="font-semibold text-white mt-0.5">{driversUsed}/{maxDrivers}</p>
+                    </div>
+                    <div className="bg-zinc-800/30 rounded-lg p-2.5">
+                      <span className="text-zinc-500">Ciclo</span>
+                      <p className="font-semibold text-white mt-0.5">{tokenInfo.cycle || "—"}</p>
+                    </div>
+                    <div className="bg-zinc-800/30 rounded-lg p-2.5">
+                      <span className="text-zinc-500">Vence</span>
+                      <p className="font-semibold text-white mt-0.5">{tokenInfo.expires_at ? new Date(tokenInfo.expires_at).toLocaleDateString("es-MX") : "—"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 font-mono text-xs bg-zinc-800/50 px-3 py-2 rounded-lg border border-zinc-700/50 select-all overflow-hidden text-ellipsis">
+                      {revealed[tokenInfo.token] ? tokenInfo.token : `${tokenInfo.token?.slice(0, 24)}...`}
+                    </code>
+                    <button onClick={() => setRevealed((r) => ({ ...r, [tokenInfo.token]: !r[tokenInfo.token] }))}
+                      className="p-2 text-zinc-500 hover:text-white transition-colors">
+                      {revealed[tokenInfo.token] ? <EyeSlash size={14} /> : <Eye size={14} />}
+                    </button>
+                    <button onClick={() => copyToken(tokenInfo.token)}
+                      className="p-2 text-zinc-500 hover:text-white transition-colors">
+                      <Copy size={14} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
+                    <p className="text-sm font-semibold text-amber-400 mb-3">Asignar token de monitorista</p>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="text-xs text-zinc-400 mb-1 block">Plan</label>
+                        <select value={planId} onChange={(e) => setPlanId(e.target.value)}
+                          className="w-full bg-zinc-800/80 border border-zinc-700/60 rounded-xl px-3 py-2 text-sm outline-none text-white">
+                          {PLANS.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.devices} cond.)</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-zinc-400 mb-1 block">Ciclo</label>
+                        <select value={cycle} onChange={(e) => setCycle(e.target.value)}
+                          className="w-full bg-zinc-800/80 border border-zinc-700/60 rounded-xl px-3 py-2 text-sm outline-none text-white">
+                          {["Semanal", "Mensual", "Bimestral", "Trimestral", "Anual"].map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <p className="text-xs text-zinc-500 mb-3">Plan {selectedPlan?.name} — {selectedPlan?.devices} conductores permitidos</p>
+                    <button onClick={handleAssignToken} disabled={busy}
+                      className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold rounded-xl text-sm transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50">
+                      {busy ? "Generando..." : "Generar token de monitorista"}
+                    </button>
+                  </div>
+                  {generatedToken && (
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-emerald-400 mb-2">Token generado exitosamente</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <code className="flex-1 font-mono text-xs bg-black/30 px-3 py-2 rounded-lg border border-emerald-500/30 select-all">
+                          {generatedToken.token}
+                        </code>
+                        <button onClick={() => copyToken(generatedToken.token)}
+                          className="p-2 text-emerald-400 hover:text-emerald-300 transition-colors">
+                          <Copy size={14} />
+                        </button>
+                      </div>
+                      <p className="text-xs text-zinc-500">Plan: {generatedToken.plan_name} | Vence: {new Date(generatedToken.expires_at).toLocaleDateString("es-MX")}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === "drivers" && (
+            <div className="space-y-4">
+              {tokenInfo ? (
+                <>
+                  <div className="bg-zinc-800/30 rounded-xl p-3">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-zinc-400">Conductores usados</span>
+                      <span className="font-bold">{driversUsed}/{maxDrivers}</span>
+                    </div>
+                    {maxDrivers > 0 && (
+                      <div className="w-full h-2 bg-zinc-700/50 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.min(100, (driversUsed / maxDrivers) * 100)}%`,
+                            background: driversUsed >= maxDrivers ? "#FF2A2A" : driversUsed >= maxDrivers * 0.8 ? "#FFB800" : "#00E676",
+                          }} />
+                      </div>
+                    )}
+                    <p className="text-xs text-zinc-500 mt-1.5">{driversAvail} lugares disponibles</p>
+                  </div>
+
+                  {driversAvail > 0 && (
+                    <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-blue-400 mb-3">Generar tokens de conductor</p>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <label className="text-xs text-zinc-400 mb-1 block">Cantidad (max {driversAvail})</label>
+                          <input type="number" min="1" max={driversAvail} value={driverCount}
+                            onChange={(e) => setDriverCount(Math.min(Number(e.target.value) || 1, driversAvail))}
+                            className="w-full bg-zinc-800/80 border border-zinc-700/60 rounded-xl px-3 py-2 text-sm outline-none text-white" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-zinc-400 mb-1 block">Tipo de uso</label>
+                          <div className="flex gap-2 h-full items-center">
+                            <button onClick={() => setReusable(false)}
+                              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${!reusable ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-zinc-800/50 text-zinc-500 border border-zinc-700/50"}`}>
+                              Un solo uso
+                            </button>
+                            <button onClick={() => setReusable(true)}
+                              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${reusable ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-zinc-800/50 text-zinc-500 border border-zinc-700/50"}`}>
+                              Reutilizable
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <button onClick={handleGenerateDrivers} disabled={generatingDrivers}
+                        className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50">
+                        {generatingDrivers ? "Generando..." : `Generar ${driverCount} token(s) de conductor`}
+                      </button>
+                    </div>
+                  )}
+
+                  {driverTokens.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-300 mb-2">Tokens generados ({driverTokens.length})</p>
+                      <div className="space-y-2">
+                        {driverTokens.map((t, i) => (
+                          <div key={t.token || i} className="flex items-center gap-2 bg-zinc-800/30 rounded-xl p-3 border border-zinc-700/50">
+                            <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-400">
+                              {i + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium">{t.name || `Conductor ${driversUsed + i + 1}`}</p>
+                              <code className="text-[11px] text-zinc-400 font-mono">{revealed[t.token] ? t.token : `${t.token?.slice(0, 16)}...`}</code>
+                            </div>
+                            <button onClick={() => setRevealed((r) => ({ ...r, [t.token]: !r[t.token] }))}
+                              className="p-1.5 text-zinc-500 hover:text-white transition-colors">
+                              {revealed[t.token] ? <EyeSlash size={13} /> : <Eye size={13} />}
+                            </button>
+                            <button onClick={() => copyToken(t.token)}
+                              className="p-1.5 text-zinc-500 hover:text-white transition-colors">
+                              <Copy size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show existing conductor tokens */}
+                  <DriverTokenList companyId={companyId} />
+                </>
+              ) : (
+                <div className="text-center py-8 text-zinc-500">
+                  <p className="text-sm">Primero asigna un token de monitorista</p>
+                  <p className="text-xs text-zinc-600 mt-1">Ve a la pestana "Token monitorista" para crear el token de la empresa</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Driver Token List (read-only) ── */
+function DriverTokenList({ companyId }) {
+  const [tokens, setTokens] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [revealed, setRevealed] = useState({});
+
+  useEffect(() => {
+    loadTokens();
+  }, []);
+
+  const loadTokens = async () => {
+    try {
+      const { data } = await api.get("/auth/driver-tokens");
+      setTokens(data || []);
+    } catch {} finally { setLoading(false); }
+  };
+
+  const copyToken = (tok) => {
+    navigator.clipboard?.writeText(tok);
+    toast.success("Token copiado");
+  };
+
+  if (loading) return <div className="text-center py-4 text-xs text-zinc-500">Cargando...</div>;
+  if (tokens.length === 0) return null;
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-zinc-300 mb-2">Tokens de conductor existentes ({tokens.length})</p>
+      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        {tokens.map((t) => (
+          <div key={t.token} className="flex items-center gap-2 bg-zinc-800/20 rounded-lg p-2.5 border border-zinc-800/50">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${t.device_id ? "bg-emerald-400" : "bg-zinc-500"}`} />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium truncate">{t.name || "Sin nombre"}</p>
+              <code className="text-[10px] text-zinc-500 font-mono">{revealed[t.token] ? t.token : `${t.token?.slice(0, 16)}...`}</code>
+            </div>
+            <button onClick={() => setRevealed((r) => ({ ...r, [t.token]: !r[t.token] }))}
+              className="p-1 text-zinc-500 hover:text-white transition-colors">
+              {revealed[t.token] ? <EyeSlash size={11} /> : <Eye size={11} />}
+            </button>
+            <button onClick={() => copyToken(t.token)}
+              className="p-1 text-zinc-500 hover:text-white transition-colors">
+              <Copy size={11} />
+            </button>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${t.device_id ? "bg-emerald-500/15 text-emerald-400" : "bg-zinc-700/50 text-zinc-400"}`}>
+              {t.device_id ? "En uso" : "Disponible"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Reusable components ── */
+function InputField({ icon: Icon, label, name, type = "text", value, onChange, placeholder, min, max }) {
   return (
     <div>
       <label className="text-xs text-zinc-400 mb-1.5 block font-medium">{label}</label>
@@ -930,9 +1498,26 @@ function InputField({ icon: Icon, label, name, type = "text", value, onChange, p
           value={value}
           onChange={onChange}
           placeholder={placeholder}
+          min={min}
+          max={max}
           className={`w-full bg-zinc-800/80 border border-zinc-700/60 focus:border-amber-500/50 rounded-xl px-3 py-2.5 text-sm outline-none transition-all text-white placeholder-zinc-600 ${Icon ? "pl-9" : ""}`}
         />
       </div>
+    </div>
+  );
+}
+
+function SelectField({ label, name, value, onChange, options, placeholder }) {
+  return (
+    <div>
+      <label className="text-xs text-zinc-400 mb-1.5 block font-medium">{label}</label>
+      <select name={name} value={value} onChange={onChange}
+        className="w-full bg-zinc-800/80 border border-zinc-700/60 focus:border-amber-500/50 rounded-xl px-3 py-2.5 text-sm outline-none transition-all text-white">
+        {placeholder && <option value="">{placeholder}</option>}
+        {options.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
     </div>
   );
 }

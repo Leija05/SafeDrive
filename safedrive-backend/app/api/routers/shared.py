@@ -151,7 +151,7 @@ async def admin_create_user(body: AdminCreateUserIn, user: dict = Depends(requir
     if role in ("monitorista", "admin") and user.get("role") != "superadmin":
         raise HTTPException(status_code=403, detail="Solo SuperAdmin puede crear monitoristas")
 
-    company_id = get_company_id(user)
+    company_id = body.company_id or get_company_id(user)
 
     email = body.email.lower()
     if await db.users.find_one({"email": email}):

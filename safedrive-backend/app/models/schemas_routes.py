@@ -30,6 +30,10 @@ class UnitCreate(BaseModel):
     driver_password: Optional[str] = None
     driver_phone: Optional[str] = None
     plate: str
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    tipo: Optional[str] = None
     imei: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None
@@ -42,6 +46,10 @@ class UnitUpdate(BaseModel):
     driver_id: Optional[str] = None
     driver_name: Optional[str] = None
     plate: Optional[str] = None
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    anio: Optional[int] = None
+    tipo: Optional[str] = None
     imei: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None

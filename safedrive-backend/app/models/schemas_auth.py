@@ -20,6 +20,7 @@ class RegisterIn(BaseModel):
     plate: Optional[str] = None
     role: Optional[str] = "conductor"
     unit_id: Optional[str] = None
+    company_id: Optional[str] = None
 
 class AdminCreateUserIn(BaseModel):
     """Admin creating a new user."""
@@ -30,6 +31,7 @@ class AdminCreateUserIn(BaseModel):
     phone: Optional[str] = None
     plate: Optional[str] = None
     unit_id: Optional[str] = None
+    company_id: Optional[str] = None
 
 class AdminUpdateUserIn(BaseModel):
     """Admin updating a user."""
